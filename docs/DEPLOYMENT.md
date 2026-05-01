@@ -42,12 +42,16 @@
 - `MAX_DOCUMENT_UPLOAD_BYTES` — Maximum upload size in bytes. Default: `10485760` (10MB)
 
 ### AI Provider
-- `AI_PROVIDER` — `"openai-compatible"` (default) or `"mock"` (for tests/dev)
-- `AI_API_KEY` — API key for the OpenAI-compatible provider
+- `AI_PROVIDER` — `"openai-compatible"` or `"mock"`
+  - `"mock"` is for local development and tests only.
+  - Production MUST use `"openai-compatible"` with a real API key and model.
+  - Missing `AI_PROVIDER` in production causes a fail-closed configuration error.
+- `AI_API_KEY` — Required when `AI_PROVIDER=openai-compatible`
 - `AI_BASE_URL` — Optional base URL override (e.g., for Azure OpenAI or custom endpoints)
-- `AI_MODEL` — Model name (e.g., `gpt-4o-mini`)
+- `AI_MODEL` — Required when `AI_PROVIDER=openai-compatible`
 - `AI_REQUEST_TIMEOUT_MS` — Request timeout in milliseconds. Default: `30000`
 - `AI_MAX_CONTEXT_CHARS` — Max context size sent to the AI. Default: `30000`
+- `REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION` — Set to `"true"` only if you explicitly intend to use mock output in production. Mock output is deterministic fake data and must never be used for real compliance work.
 
 ### Optional
 - `REGOPS_SEED_PASSWORD` — Password for seed demo users. Defaults to `RegOpsDev123!` for local dev. **Never use the default in production.**
@@ -89,8 +93,9 @@
 - No blockchain analytics integration yet
 
 ## AI Risk Memo Generation
-- Requires `AI_PROVIDER` and `AI_API_KEY` (if using openai-compatible)
-- Mock provider is used automatically when `AI_PROVIDER=mock` or when `AI_API_KEY` is missing
+- Requires `AI_PROVIDER` and `AI_API_KEY` + `AI_MODEL` (if using openai-compatible)
+- Mock provider is used only when `AI_PROVIDER=mock`. It is NOT a silent fallback.
+- Production fails closed if `AI_PROVIDER` is missing, unknown, or `mock` without override.
 - Context is built from case evidence and truncated to `AI_MAX_CONTEXT_CHARS`
 - All AI outputs are validated against a strict Zod schema before storage
 - AI is advisory only; human acceptance is required before a memo influences case decisions

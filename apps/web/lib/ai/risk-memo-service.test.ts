@@ -238,4 +238,99 @@ describe("generateRiskMemoService", () => {
       })
     ).rejects.toThrow("Case not found");
   });
+
+  it("provider config error creates FAILED AgentRun and writes audit", async () => {
+    const { org, owner, caseRecord } = await seedOrgWithCase();
+    const originalProvider = process.env.AI_PROVIDER;
+    const originalModel = process.env.AI_MODEL;
+    process.env.AI_PROVIDER = "openai-compatible";
+    delete process.env.AI_MODEL;
+
+    await expect(
+      generateRiskMemoService(ctx(owner.id, org.id, "OWNER"), {
+        complianceCaseId: caseRecord.id,
+      })
+    ).rejects.toThrow();
+
+    process.env.AI_PROVIDER = originalProvider;
+    if (originalModel) process.env.AI_MODEL = originalModel;
+
+    const agentRun = await prisma.agentRun.findFirst({
+      where: { organizationId: org.id, complianceCaseId: caseRecord.id },
+    });
+    expect(agentRun).not.toBeNull();
+    expect(agentRun?.status).toBe("FAILED");
+    expect(agentRun?.errorMessage).toBeTruthy();
+
+    const audits = await prisma.auditEvent.findMany({
+      where: { organizationId: org.id, action: "RISK_MEMO_GENERATION_FAILED" },
+    });
+    expect(audits).toHaveLength(1);
+  });
+
+  it("provider config error does not create RiskMemo", async () => {
+    const { org, owner, caseRecord } = await seedOrgWithCase();
+    const originalProvider = process.env.AI_PROVIDER;
+    const originalModel = process.env.AI_MODEL;
+    process.env.AI_PROVIDER = "openai-compatible";
+    delete process.env.AI_MODEL;
+
+    await expect(
+      generateRiskMemoService(ctx(owner.id, org.id, "OWNER"), {
+        complianceCaseId: caseRecord.id,
+      })
+    ).rejects.toThrow();
+
+    process.env.AI_PROVIDER = originalProvider;
+    if (originalModel) process.env.AI_MODEL = originalModel;
+
+    const memos = await prisma.riskMemo.count({
+      where: { organizationId: org.id },
+    });
+    expect(memos).toBe(0);
+  });
+
+  it("provider config error does not create ApprovalDecision", async () => {
+    const { org, owner, caseRecord } = await seedOrgWithCase();
+    const originalProvider = process.env.AI_PROVIDER;
+    const originalModel = process.env.AI_MODEL;
+    process.env.AI_PROVIDER = "openai-compatible";
+    delete process.env.AI_MODEL;
+
+    await expect(
+      generateRiskMemoService(ctx(owner.id, org.id, "OWNER"), {
+        complianceCaseId: caseRecord.id,
+      })
+    ).rejects.toThrow();
+
+    process.env.AI_PROVIDER = originalProvider;
+    if (originalModel) process.env.AI_MODEL = originalModel;
+
+    const decisions = await prisma.approvalDecision.count({
+      where: { organizationId: org.id },
+    });
+    expect(decisions).toBe(0);
+  });
+
+  it("provider config error does not change case status", async () => {
+    const { org, owner, caseRecord } = await seedOrgWithCase();
+    const originalProvider = process.env.AI_PROVIDER;
+    const originalModel = process.env.AI_MODEL;
+    process.env.AI_PROVIDER = "openai-compatible";
+    delete process.env.AI_MODEL;
+
+    await expect(
+      generateRiskMemoService(ctx(owner.id, org.id, "OWNER"), {
+        complianceCaseId: caseRecord.id,
+      })
+    ).rejects.toThrow();
+
+    process.env.AI_PROVIDER = originalProvider;
+    if (originalModel) process.env.AI_MODEL = originalModel;
+
+    const updatedCase = await prisma.complianceCase.findFirst({
+      where: { id: caseRecord.id },
+    });
+    expect(updatedCase?.status).toBe("OPEN");
+  });
 });

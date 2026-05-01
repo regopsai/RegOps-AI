@@ -4,6 +4,7 @@ import { generateRiskMemo, acceptRiskMemo } from "@/lib/ai/server";
 import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
+import { getMockProviderWarning } from "@regops-ai/ai";
 import Link from "next/link";
 import { DocumentUpload } from "../../components/document-upload";
 import { DocumentList } from "../../components/document-list";
@@ -28,6 +29,7 @@ export default async function CaseDetailPage({
   const canRunRiskChecks = hasPermission(context.membership.role, "cases:update");
   const canArchive = hasPermission(context.membership.role, "documents:archive");
   const canGenerateMemo = hasPermission(context.membership.role, "ai:risk_memo");
+  const mockWarning = getMockProviderWarning();
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: context.organization.id, status: "ACTIVE" },
@@ -255,6 +257,11 @@ export default async function CaseDetailPage({
 
           {/* AI Risk Memo */}
           <Card title="AI Risk Memo">
+            {mockWarning.showWarning && (
+              <div className={`mb-3 rounded px-2 py-1 text-xs ${mockWarning.message.includes("DANGER") || mockWarning.message.includes("production") ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                {mockWarning.message}
+              </div>
+            )}
             <div className="mb-3 space-y-2">
               {canGenerateMemo && (
                 <form action={async () => {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MockProvider } from "./mock-provider";
 import { OpenAICompatibleProvider } from "./openai-compatible-provider";
 import { AIValidationError, AIRequestError, AITimeoutError } from "./errors";
+import { createAIProvider, getMockProviderWarning, AIConfigurationError } from "./index";
 
 const testSchema = z.object({
   summary: z.string().min(1),
@@ -249,5 +250,142 @@ describe("riskMemoAIOutputSchema", () => {
     };
     const result = riskMemoAIOutputSchema.safeParse(output);
     expect(result.success).toBe(false);
+  });
+});
+
+describe("createAIProvider configuration safety", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.resetModules();
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it("test env missing AI_PROVIDER uses mock", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.AI_PROVIDER;
+    const provider = createAIProvider();
+    expect(provider.name).toBe("mock");
+  });
+
+  it("development missing AI_PROVIDER uses mock", () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.AI_PROVIDER;
+    const provider = createAIProvider();
+    expect(provider.name).toBe("mock");
+  });
+
+  it("production missing AI_PROVIDER fails closed", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.AI_PROVIDER;
+    expect(() => createAIProvider()).toThrow(AIConfigurationError);
+    expect(() => createAIProvider()).toThrow("AI_PROVIDER is required in production");
+  });
+
+  it("production AI_PROVIDER=mock fails closed without override", () => {
+    process.env.NODE_ENV = "production";
+    process.env.AI_PROVIDER = "mock";
+    delete process.env.REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION;
+    expect(() => createAIProvider()).toThrow(AIConfigurationError);
+    expect(() => createAIProvider()).toThrow("not allowed in production");
+  });
+
+  it("production AI_PROVIDER=mock succeeds with override", () => {
+    process.env.NODE_ENV = "production";
+    process.env.AI_PROVIDER = "mock";
+    process.env.REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION = "true";
+    const provider = createAIProvider();
+    expect(provider.name).toBe("mock");
+  });
+
+  it("openai-compatible without AI_API_KEY fails", () => {
+    process.env.AI_PROVIDER = "openai-compatible";
+    delete process.env.AI_API_KEY;
+    process.env.AI_MODEL = "gpt-4o";
+    expect(() => createAIProvider()).toThrow(AIConfigurationError);
+    expect(() => createAIProvider()).toThrow("AI_API_KEY is required");
+  });
+
+  it("openai-compatible without AI_MODEL fails", () => {
+    process.env.AI_PROVIDER = "openai-compatible";
+    process.env.AI_API_KEY = "sk-test";
+    delete process.env.AI_MODEL;
+    expect(() => createAIProvider()).toThrow(AIConfigurationError);
+    expect(() => createAIProvider()).toThrow("AI_MODEL is required");
+  });
+
+  it("openai-compatible with required env returns provider instance", () => {
+    process.env.AI_PROVIDER = "openai-compatible";
+    process.env.AI_API_KEY = "sk-test";
+    process.env.AI_MODEL = "gpt-4o";
+    const provider = createAIProvider();
+    expect(provider.name).toBe("openai-compatible");
+  });
+
+  it("unknown AI_PROVIDER fails", () => {
+    process.env.AI_PROVIDER = "unknown-provider";
+    expect(() => createAIProvider()).toThrow(AIConfigurationError);
+    expect(() => createAIProvider()).toThrow("Unknown AI_PROVIDER");
+  });
+
+  it("error messages do not contain API keys", () => {
+    process.env.AI_PROVIDER = "openai-compatible";
+    process.env.AI_API_KEY = "sk-super-secret-key-123";
+    delete process.env.AI_MODEL;
+    try {
+      createAIProvider();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      expect(message).not.toContain("sk-super-secret-key-123");
+    }
+  });
+});
+
+describe("getMockProviderWarning", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns no warning when provider is not mock", () => {
+    process.env.AI_PROVIDER = "openai-compatible";
+    const warning = getMockProviderWarning();
+    expect(warning.showWarning).toBe(false);
+  });
+
+  it("returns dev warning when provider is mock in development", () => {
+    process.env.NODE_ENV = "development";
+    process.env.AI_PROVIDER = "mock";
+    const warning = getMockProviderWarning();
+    expect(warning.showWarning).toBe(true);
+    expect(warning.message).toContain("local development");
+  });
+
+  it("returns production danger warning when mock is allowed in production", () => {
+    process.env.NODE_ENV = "production";
+    process.env.AI_PROVIDER = "mock";
+    process.env.REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION = "true";
+    const warning = getMockProviderWarning();
+    expect(warning.showWarning).toBe(true);
+    expect(warning.message).toContain("production");
+    expect(warning.message).toContain("Do not use");
+  });
+
+  it("does not expose API key in warning", () => {
+    process.env.NODE_ENV = "development";
+    process.env.AI_PROVIDER = "mock";
+    process.env.AI_API_KEY = "sk-secret";
+    const warning = getMockProviderWarning();
+    expect(warning.message).not.toContain("sk-secret");
   });
 });

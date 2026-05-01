@@ -99,6 +99,15 @@ All significant actions (case creation, update, assignment, status change, note 
 | Generate memo | `ai:risk_memo` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 | Accept memo | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 
+### AI Provider Safety
+- `AI_PROVIDER=mock` is blocked in production unless `REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION=true`.
+- Missing `AI_PROVIDER` in production throws a configuration error (fail-closed).
+- `AI_PROVIDER=openai-compatible` requires both `AI_API_KEY` and `AI_MODEL`.
+- Unknown `AI_PROVIDER` values throw a configuration error.
+- No silent fallback to mock provider in production.
+- AgentRun does not store API keys, raw request headers, or full prompts.
+- Audit events do not store full prompts, memo text, or document content.
+
 ### Text Extraction Behavior
 - **PDF**: Extracted via pdfjs-dist (text-based PDFs only). Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.
 - **TXT/CSV**: Read as UTF-8 text. Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.

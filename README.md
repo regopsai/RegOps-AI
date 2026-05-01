@@ -156,6 +156,7 @@ pnpm test
   - Idempotency, audit events, cross-org rejection.
 - **AI provider unit tests**:
   - Mock provider deterministic output, OpenAI-compatible provider request building, timeout handling, error response handling, API key redaction.
+  - Provider configuration safety: production fail-closed, mock restrictions, missing env handling, unknown provider rejection.
 - **Risk memo schema tests**:
   - Valid output acceptance, unsupported action rejection, empty string rejection, evidence reference validation.
 - **Context builder integration tests**:

@@ -59,7 +59,7 @@ export async function generateRiskMemoService(
     maxContextChars
   );
 
-  const provider = input.providerOverride ?? createAIProvider();
+  const providerName = input.providerOverride?.name ?? process.env.AI_PROVIDER ?? "unknown";
   const model = input.model ?? process.env.AI_MODEL ?? "gpt-4o-mini";
   const promptVersion = "risk-memo-v1";
 
@@ -68,7 +68,7 @@ export async function generateRiskMemoService(
       organizationId: ctx.organizationId,
       complianceCaseId: input.complianceCaseId,
       agentType: "RISK_MEMO",
-      provider: provider.name,
+      provider: providerName,
       model,
       promptVersion,
       inputHash: contextResult.contextHash,
@@ -83,6 +83,7 @@ export async function generateRiskMemoService(
   let latencyMs: number;
 
   try {
+    const provider = input.providerOverride ?? createAIProvider();
     const result = await provider.generateStructuredJson({
       systemPrompt: getSystemPrompt(),
       userPrompt: contextResult.contextText,
@@ -121,7 +122,7 @@ export async function generateRiskMemoService(
       entityId: agentRun.id,
       metadataJson: JSON.stringify({
         complianceCaseId: input.complianceCaseId,
-        provider: provider.name,
+        provider: providerName,
         model,
         promptVersion,
         errorCode:
@@ -169,7 +170,7 @@ export async function generateRiskMemoService(
       complianceCaseId: input.complianceCaseId,
       agentRunId: agentRun.id,
       model,
-      provider: provider.name,
+      provider: providerName,
       promptVersion,
       recommendedAction: aiOutput.recommendedAction,
       evidenceReferenceCount: aiOutput.evidenceReferences.length,

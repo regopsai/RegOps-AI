@@ -66,6 +66,12 @@ Audit metadata is safe: no full prompts, no full memo text, no document text, no
 ## Review and Retraining
 AI prompts and outputs may be logged (without PII) for quality review and prompt improvement. No customer PII is used to train external models.
 
+## Provider Configuration Safety
+- The system fails closed in production if `AI_PROVIDER` is missing or set to `mock` without explicit override.
+- `AI_PROVIDER=mock` is only allowed in production when `REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION=true`.
+- Mock output is deterministic fake data and must never be used for real compliance work.
+- The UI displays a warning banner when the mock provider is active.
+
 ## Production Considerations
 - Use a vetted model/provider with known compliance behavior
 - Enable logging redaction for sensitive fields
