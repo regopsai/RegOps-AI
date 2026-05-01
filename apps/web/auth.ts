@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { createAuditEvent } from "@regops-ai/database";
 import { isRateLimited } from "./lib/auth/rate-limit";
 import { verifyCredentials } from "./lib/auth/verify-credentials";
+import { authConfig } from "./auth.config";
 
 export const {
   handlers: { GET, POST },
@@ -10,6 +11,7 @@ export const {
   signIn,
   signOut,
 } = NextAuth({
+  pages: authConfig.pages,
   secret: process.env.AUTH_SECRET,
   trustHost: process.env.AUTH_TRUST_HOST === "true",
   session: {

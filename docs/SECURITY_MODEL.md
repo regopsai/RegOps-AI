@@ -18,6 +18,12 @@ Database helpers enforce this by requiring `organizationId` in `where` clauses f
 - Session contains only `user.id`, `email`, and `name`.
 - Active organization is stored in an `httpOnly` cookie (`regops_active_org`) validated on every request against the user's active memberships.
 
+## Auth Configuration Split
+The Auth.js configuration is split for edge safety:
+- **`auth.config.ts`** — Edge-safe config used by middleware. Contains no Prisma, bcryptjs, or credential verification logic.
+- **`auth.ts`** — Server-only config that imports `auth.config.ts` and adds the Credentials provider with bcryptjs/Prisma verification.
+- **`middleware.ts`** — Imports only from `auth.config.ts` to avoid bundling Node-only modules into the Edge Runtime.
+
 ## Role-Based Access Control (RBAC)
 Permissions are enforced at the API and server-page layer based on the user's `OrganizationMember.role`:
 
@@ -28,6 +34,9 @@ Permissions are enforced at the API and server-page layer based on the user's `O
 | **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents, transactions, policies, audit logs, evidence export, AI risk memo |
 | **COMPLIANCE_ANALYST** | Read/write cases, documents, transactions, policies read, AI risk memo |
 | **READ_ONLY_AUDITOR** | Read-only access to cases, documents, transactions, policies, audit logs, evidence export |
+
+## Rate Limiting
+Login attempts are rate-limited per IP (5 attempts per 15 minutes). The current implementation uses an in-memory store suitable for local development only. Production deployments must replace this with a distributed rate limiter (e.g., Redis, Upstash, or cloud WAF rules).
 
 ## Audit Trail
 All significant actions (case creation, decision, AI invocation, evidence upload, login, organization switch) are recorded in an append-only audit log. Logs are tamper-evident and scoped by tenant.

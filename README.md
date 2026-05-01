@@ -70,6 +70,13 @@ The seed script creates these users (all with the same dev password):
 
 **Dev password:** `RegOpsDev123!`
 
+## Auth Architecture
+
+Auth.js v5 is configured with an edge-safe split:
+- **`auth.config.ts`** — Shared config used by middleware (no Prisma/bcryptjs)
+- **`auth.ts`** — Server-only config with Credentials provider and database verification
+- **`middleware.ts`** — Edge-safe route protection using only `auth.config.ts`
+
 ## Database Commands
 
 - `pnpm db:generate` — Generate Prisma client
