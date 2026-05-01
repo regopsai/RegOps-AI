@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents, runCaseRiskChecks } from "@/lib/cases/server";
+import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents, runCaseRiskChecks, makeFinalDecision, getApprovalDecisions } from "@/lib/cases/server";
 import { generateRiskMemo, acceptRiskMemo } from "@/lib/ai/server";
 import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
@@ -29,7 +29,9 @@ export default async function CaseDetailPage({
   const canRunRiskChecks = hasPermission(context.membership.role, "cases:update");
   const canArchive = hasPermission(context.membership.role, "documents:archive");
   const canGenerateMemo = hasPermission(context.membership.role, "ai:risk_memo");
+  const canMakeFinalDecision = hasPermission(context.membership.role, "cases:final_decision");
   const mockWarning = getMockProviderWarning();
+  const isTerminal = ["APPROVED", "REJECTED", "CLOSED"].includes(caseData.status);
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: context.organization.id, status: "ACTIVE" },
@@ -37,6 +39,7 @@ export default async function CaseDetailPage({
   });
 
   const auditEvents = await getCaseAuditEvents(caseId);
+  const approvalDecisions = await getApprovalDecisions(caseId);
 
   const documents = await prisma.document.findMany({
     where: { organizationId: context.organization.id, complianceCaseId: caseId, deletedAt: null },
@@ -515,6 +518,63 @@ export default async function CaseDetailPage({
             </div>
           </Card>
 
+          {/* Final Decision */}
+          <Card title="Final Decision">
+            {approvalDecisions.length > 0 && (
+              <div className="mb-4 space-y-2">
+                {approvalDecisions.map((d) => (
+                  <div key={d.id} className="rounded-md border border-slate-200 p-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <DecisionBadge decision={d.decision} />
+                      <span className="text-xs text-slate-500">{new Date(d.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600">{d.reason}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      By {d.reviewer.name ?? d.reviewer.email}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isTerminal ? (
+              <p className="text-sm text-slate-500">Case is in a terminal state. No further decisions allowed.</p>
+            ) : canMakeFinalDecision ? (
+              <form action={async (formData: FormData) => {
+                "use server";
+                await makeFinalDecision(caseId, formData);
+              }} className="space-y-2">
+                <select
+                  name="decision"
+                  required
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">Select decision...</option>
+                  <option value="APPROVE">Approve</option>
+                  <option value="REJECT">Reject</option>
+                  <option value="ESCALATE">Escalate</option>
+                  <option value="REQUEST_MORE_INFORMATION">Request More Information</option>
+                  <option value="CLOSE_NO_ACTION">Close (No Action)</option>
+                </select>
+                <textarea
+                  name="reason"
+                  required
+                  rows={3}
+                  placeholder="Reason for decision..."
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+                <button
+                  type="submit"
+                  className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  Submit Final Decision
+                </button>
+              </form>
+            ) : (
+              <p className="text-sm text-slate-500">No final decisions yet.</p>
+            )}
+          </Card>
+
           {/* Audit Timeline */}
           <Card title="Activity">
             {auditEvents.length === 0 ? (
@@ -617,6 +677,21 @@ function RecommendedActionBadge({ action }: { action: string }) {
   return (
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[action] ?? "bg-slate-50 text-slate-700"}`}>
       {action}
+    </span>
+  );
+}
+
+function DecisionBadge({ decision }: { decision: string }) {
+  const colors: Record<string, string> = {
+    APPROVE: "bg-green-50 text-green-700",
+    REJECT: "bg-gray-50 text-gray-700",
+    ESCALATE: "bg-red-50 text-red-700",
+    REQUEST_MORE_INFORMATION: "bg-blue-50 text-blue-700",
+    CLOSE_NO_ACTION: "bg-slate-100 text-slate-700",
+  };
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[decision] ?? "bg-slate-50 text-slate-700"}`}>
+      {decision}
     </span>
   );
 }

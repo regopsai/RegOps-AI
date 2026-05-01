@@ -18,6 +18,10 @@ import {
   getBusinessService,
   getCaseAuditEventsService,
 } from "./case-service";
+import {
+  makeFinalDecisionService,
+  listApprovalDecisionsService,
+} from "./decision-service";
 import { generateRiskSignalsForCaseService } from "@/lib/risk/risk-service";
 
 function toContext(context: Awaited<ReturnType<typeof requirePermission>>) {
@@ -107,4 +111,22 @@ export async function runCaseRiskChecks(caseId: string) {
   const ctx = toContext(await requirePermission("cases:update"));
   const result = await generateRiskSignalsForCaseService(ctx, caseId);
   return result;
+}
+
+export async function makeFinalDecision(caseId: string, formData: FormData) {
+  const ctx = toContext(await requirePermission("cases:final_decision"));
+  const decision = formData.get("decision") as string;
+  const reason = formData.get("reason") as string;
+  await makeFinalDecisionService(ctx, { caseId, decision, reason } as {
+    caseId: string;
+    decision: "APPROVE" | "REJECT" | "ESCALATE" | "REQUEST_MORE_INFORMATION" | "CLOSE_NO_ACTION";
+    reason: string;
+  });
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath("/cases");
+}
+
+export async function getApprovalDecisions(caseId: string) {
+  const ctx = toContext(await requirePermission("cases:read"));
+  return listApprovalDecisionsService(ctx, caseId);
 }
