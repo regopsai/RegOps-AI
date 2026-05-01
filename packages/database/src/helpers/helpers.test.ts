@@ -83,6 +83,7 @@ async function cleanupTestData() {
     "CaseNote",
     "ComplianceCase",
     "Transaction",
+    "TransactionImportBatch",
     "Document",
     "PolicyChunk",
     "PolicyDocument",

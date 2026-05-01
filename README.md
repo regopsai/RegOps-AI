@@ -77,6 +77,22 @@ The seed script creates these users (all with the same dev password):
 - **New case** (`/cases/new`) — Create cases linked to individual customers or businesses
 - **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, audit timeline; update status, assign, add notes (RBAC-enforced)
 
+### Transaction Import
+- **Transactions** (`/transactions`) — List with filters (direction, currency, country, date range, amount, search) and import button
+- **Transaction import** (`/transactions/import`) — CSV upload with mode selector and result summary
+- **Transaction detail** (`/transactions/[transactionId]`) — Full details, linked entities, risk signals
+
+### Deterministic AML Risk Signals
+Rules implemented:
+- HIGH_VALUE_TRANSACTION: flags transactions above currency threshold (default 10,000)
+- STRUCTURING_PATTERN: detects multiple sub-threshold deposits within 7 days
+- HIGH_RISK_COUNTRY: flags transactions involving sanctioned/high-risk countries (IR, KP, SY, MM)
+- RAPID_IN_OUT_FLOW: detects similar inbound/outbound within 24 hours
+- MANY_COUNTERPARTIES: flags >5 unique counterparties within 30 days
+- MISSING_PROFILE_DATA: flags incomplete customer/business profiles
+- MISSING_REQUIRED_DOCUMENTS: flags missing ID/proof-of-address/registration docs
+- Idempotent generation with evidenceHash deduplication
+
 ### Customer & Business Profiles
 - **Customers** (`/customers`) — Read-only list with filters and search
 - **Customer detail** (`/customers/[customerId]`) — Profile summary, related cases, transactions, documents, risk signals
@@ -84,7 +100,7 @@ The seed script creates these users (all with the same dev password):
 - **Business detail** (`/businesses/[businessId]`) — Profile summary, related cases, transactions, documents, risk signals
 
 ### Auth & Access Control
-- Role-based access control with 5 roles and 21 permissions
+- Role-based access control with 5 roles and 22 permissions
 - Organization-scoped data isolation
 - Every mutation creates an append-only audit event
 
@@ -129,9 +145,15 @@ pnpm test
 - **Document service integration tests** (real Postgres):
   - Tenant isolation: org A cannot read/download/archive org B documents.
   - Cross-org linking blocked: cannot upload document linked to org B case/customer/business.
-  - RBAC: auditor can read/download but cannot upload/archive; analyst can upload but cannot archive; manager/owner/admin can archive.
+  - RBAC: auditor read-only; analyst can upload/import; manager/owner/admin full access.
   - Audit events: DOCUMENT_UPLOADED, DOCUMENT_DOWNLOADED, DOCUMENT_ARCHIVED, DOCUMENT_EXTRACTION_COMPLETED/FAILED.
   - Text extraction: PDF text extraction, TXT/CSV extraction, images marked unsupported (no OCR).
+- **Transaction import integration tests** (real Postgres):
+  - CSV parsing, validation, deduplication, cross-org link rejection, batch tracking, audit events.
+- **Risk rule unit tests**:
+  - All 7 deterministic AML rules: threshold, structuring, high-risk country, rapid flow, many counterparties, missing profile data, missing documents.
+- **Risk signal generation integration tests**:
+  - Idempotency, audit events, cross-org rejection.
 
 ## Tech Stack
 

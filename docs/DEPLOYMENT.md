@@ -65,6 +65,21 @@
 - Images are accepted but not OCR'd in this phase
 - Malware scanning is **not yet integrated** — production deployments must add AV scanning before accepting untrusted uploads
 
+## Transaction Import
+- CSV format with required columns: externalReference, direction, amount, currency, counterpartyName, counterpartyAccount, counterpartyCountry, paymentRail, transactionType, description, occurredAt
+- Optional link columns: customerExternalReference, businessExternalReference, complianceCaseId
+- Import modes: SKIP_DUPLICATES (default), FAIL_ON_DUPLICATES
+- Deduplication via unique constraint on (organizationId, externalReference)
+- Cross-organization linking is rejected at import time
+
+## Deterministic AML Risk Signals
+- 7 rule-based checks: HIGH_VALUE_TRANSACTION, STRUCTURING_PATTERN, HIGH_RISK_COUNTRY, RAPID_IN_OUT_FLOW, MANY_COUNTERPARTIES, MISSING_PROFILE_DATA, MISSING_REQUIRED_DOCUMENTS
+- Idempotent via evidenceHash (SHA-256 of rule-specific evidence)
+- **Not legal advice** — all signals require human compliance officer review
+- No sanctions/PEP list integration yet
+- No live bank feed integration yet
+- No blockchain analytics integration yet
+
 ## Database Commands
 - `pnpm db:generate` — Generate Prisma client
 - `pnpm db:validate` — Validate schema

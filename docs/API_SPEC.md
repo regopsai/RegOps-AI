@@ -219,6 +219,55 @@ Soft-archives the document (status = ARCHIVED). Writes `DOCUMENT_ARCHIVED` audit
 - Images: Marked as UNSUPPORTED (OCR deferred)
 - Extraction failures do not reject the upload
 
+## Transaction Import
+
+### API Routes
+
+#### `POST /api/transactions/import`
+**Permission:** `transactions:import`
+
+Multipart form upload with fields:
+- `file` — Required. CSV file.
+- `mode` — Required. `SKIP_DUPLICATES` or `FAIL_ON_DUPLICATES`.
+
+CSV columns:
+- Required: `externalReference`, `direction`, `amount`, `currency`, `counterpartyName`, `counterpartyAccount`, `counterpartyCountry`, `paymentRail`, `transactionType`, `description`, `occurredAt`
+- Optional link: `customerExternalReference`, `businessExternalReference`, `complianceCaseId`
+
+**Side effects:** Creates `TransactionImportBatch`, creates `Transaction` records, writes `TRANSACTIONS_IMPORTED` or `TRANSACTION_IMPORT_FAILED` audit event.
+
+### Service Functions (`lib/transactions/import-service.ts`)
+
+- `importTransactionsService` — Parses CSV, validates rows, resolves linked entities, handles deduplication, creates batch and transactions, audits.
+- `listTransactionsService` — Scoped listing with filters (direction, currency, country, date range, amount, search).
+- `getTransactionService` — Scoped detail read with linked entities and risk signals.
+
+## Risk Signal Generation
+
+### Server Actions
+
+#### `runCaseRiskChecks(caseId: string)`
+**Permission:** `cases:update`
+
+Runs deterministic AML risk rules against case-linked transactions and profile. Creates `RiskSignal` records with `evidenceHash` for idempotency. Returns `{ created, skipped }`.
+
+**Side effects:** Creates `RISK_SIGNALS_GENERATED` audit event.
+
+### Deterministic Rules
+
+| Rule | Trigger | Severity |
+|---|---|---|
+| HIGH_VALUE_TRANSACTION | Amount >= 10,000 (EUR/USD/GBP) | HIGH |
+| STRUCTURING_PATTERN | >= 3 transactions 8,000-9,999.99 within 7 days | CRITICAL |
+| HIGH_RISK_COUNTRY | Counterparty in IR, KP, SY, MM | HIGH |
+| RAPID_IN_OUT_FLOW | Inbound + outbound within 24h, amounts within 10% | MEDIUM or HIGH |
+| MANY_COUNTERPARTIES | >5 unique counterparties within 30 days | MEDIUM |
+| MISSING_PROFILE_DATA | Missing DOB/nationality/residence (customer) or regNumber/country/industry (business) | MEDIUM |
+| MISSING_REQUIRED_DOCUMENTS | Customer missing ID_DOCUMENT or PROOF_OF_ADDRESS; business missing COMPANY_REGISTRATION or BENEFICIAL_OWNERSHIP | HIGH |
+
+### Idempotency
+Risk signals use `evidenceHash` (SHA-256 of rule-specific evidence). The database enforces `UNIQUE(organizationId, ruleId, evidenceHash)`. Repeated runs skip duplicates.
+
 ## Pages & Routes
 
 | Route | Description | Required Permission |
@@ -231,6 +280,9 @@ Soft-archives the document (status = ARCHIVED). Writes `DOCUMENT_ARCHIVED` audit
 | `/customers/[customerId]` | Customer detail | `cases:read` |
 | `/businesses` | Business list | `cases:read` |
 | `/businesses/[businessId]` | Business detail | `cases:read` |
+| `/transactions` | Transaction list | `transactions:read` |
+| `/transactions/import` | Import CSV | `transactions:import` |
+| `/transactions/[transactionId]` | Transaction detail | `transactions:read` |
 | `/settings/organization` | Org settings | `organization:read` |
 | `/settings/members` | Member management | `members:read` |
 | `/login` | Sign in | — |

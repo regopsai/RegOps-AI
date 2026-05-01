@@ -126,6 +126,19 @@ enum AgentType {
   MISSING_INFO_CHECKLIST
 }
 
+enum TransactionImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+}
+
+enum TransactionImportMode {
+  SKIP_DUPLICATES
+  FAIL_ON_DUPLICATES
+}
+
 // Models
 
 model Organization {
@@ -137,48 +150,50 @@ model Organization {
   updatedAt DateTime           @updatedAt
   deletedAt DateTime?
 
-  members          OrganizationMember[]
-  customerProfiles CustomerProfile[]
-  businessProfiles BusinessProfile[]
-  documents        Document[]
-  transactions     Transaction[]
-  complianceCases  ComplianceCase[]
-  caseNotes        CaseNote[]
-  riskSignals      RiskSignal[]
-  riskAssessments  RiskAssessment[]
-  riskMemos        RiskMemo[]
-  approvalDecisions ApprovalDecision[]
-  policyDocuments  PolicyDocument[]
-  policyChunks     PolicyChunk[]
-  auditEvents      AuditEvent[]
-  agentRuns        AgentRun[]
+  members                  OrganizationMember[]
+  customerProfiles         CustomerProfile[]
+  businessProfiles         BusinessProfile[]
+  documents                Document[]
+  transactions             Transaction[]
+  complianceCases          ComplianceCase[]
+  caseNotes                CaseNote[]
+  riskSignals              RiskSignal[]
+  riskAssessments          RiskAssessment[]
+  riskMemos                RiskMemo[]
+  approvalDecisions        ApprovalDecision[]
+  policyDocuments          PolicyDocument[]
+  policyChunks             PolicyChunk[]
+  auditEvents              AuditEvent[]
+  agentRuns                AgentRun[]
+  transactionImportBatches TransactionImportBatch[]
 
   @@index([status])
   @@index([createdAt])
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String     @id @default(cuid())
+  email         String     @unique
   emailVerified DateTime?
   name          String?
   image         String?
   status        UserStatus @default(ACTIVE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   deletedAt     DateTime?
 
-  memberships        OrganizationMember[]
-  passwordCredential PasswordCredential?
-  uploadedDocuments  Document[]          @relation("UploadedByUser")
-  assignedCases      ComplianceCase[]    @relation("AssignedToUser")
-  openedCases        ComplianceCase[]    @relation("OpenedByUser")
-  authoredNotes      CaseNote[]          @relation("AuthorUser")
-  createdRiskAssessments RiskAssessment[] @relation("RiskAssessmentCreatedByUser")
-  acceptedRiskMemos  RiskMemo[]          @relation("AcceptedByUser")
-  approvalDecisions  ApprovalDecision[]  @relation("ReviewerUser")
-  createdPolicies    PolicyDocument[]    @relation("PolicyDocumentCreatedByUser")
-  auditEvents        AuditEvent[]        @relation("ActorUser")
+  memberships            OrganizationMember[]
+  passwordCredential     PasswordCredential?
+  uploadedDocuments      Document[]               @relation("UploadedByUser")
+  uploadedImportBatches  TransactionImportBatch[] @relation("UploadedByUser")
+  assignedCases          ComplianceCase[]         @relation("AssignedToUser")
+  openedCases            ComplianceCase[]         @relation("OpenedByUser")
+  authoredNotes          CaseNote[]               @relation("AuthorUser")
+  createdRiskAssessments RiskAssessment[]         @relation("RiskAssessmentCreatedByUser")
+  acceptedRiskMemos      RiskMemo[]               @relation("AcceptedByUser")
+  approvalDecisions      ApprovalDecision[]       @relation("ReviewerUser")
+  createdPolicies        PolicyDocument[]         @relation("PolicyDocumentCreatedByUser")
+  auditEvents            AuditEvent[]             @relation("ActorUser")
 
   @@index([status])
   @@index([createdAt])
@@ -219,32 +234,32 @@ model OrganizationMember {
 }
 
 model CustomerProfile {
-  id                   String        @id @default(cuid())
-  organizationId       String
-  externalReference    String?
-  firstName            String
-  lastName             String
-  email                String?
-  phone                String?
-  dateOfBirth          DateTime?
-  nationality          String?
-  countryOfResidence   String?
-  addressLine1         String?
-  addressLine2         String?
-  city                 String?
-  postalCode           String?
-  country              String?
-  riskLevel            RiskLevel     @default(UNKNOWN)
-  status               ProfileStatus @default(DRAFT)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  deletedAt            DateTime?
+  id                 String        @id @default(cuid())
+  organizationId     String
+  externalReference  String?
+  firstName          String
+  lastName           String
+  email              String?
+  phone              String?
+  dateOfBirth        DateTime?
+  nationality        String?
+  countryOfResidence String?
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
+  postalCode         String?
+  country            String?
+  riskLevel          RiskLevel     @default(UNKNOWN)
+  status             ProfileStatus @default(DRAFT)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  documents        Document[]
-  transactions     Transaction[]
-  complianceCases  ComplianceCase[]
-  riskSignals      RiskSignal[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents       Document[]
+  transactions    Transaction[]
+  complianceCases ComplianceCase[]
+  riskSignals     RiskSignal[]
 
   @@index([organizationId])
   @@index([externalReference])
@@ -254,28 +269,28 @@ model CustomerProfile {
 }
 
 model BusinessProfile {
-  id                  String        @id @default(cuid())
-  organizationId      String
-  externalReference   String?
-  legalName           String
-  tradingName         String?
-  registrationNumber  String?
-  taxId               String?
+  id                   String        @id @default(cuid())
+  organizationId       String
+  externalReference    String?
+  legalName            String
+  tradingName          String?
+  registrationNumber   String?
+  taxId                String?
   incorporationCountry String?
-  operatingCountry    String?
-  website             String?
-  industry            String?
-  riskLevel           RiskLevel     @default(UNKNOWN)
-  status              ProfileStatus @default(DRAFT)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  deletedAt           DateTime?
+  operatingCountry     String?
+  website              String?
+  industry             String?
+  riskLevel            RiskLevel     @default(UNKNOWN)
+  status               ProfileStatus @default(DRAFT)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  deletedAt            DateTime?
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  documents        Document[]
-  transactions     Transaction[]
-  complianceCases  ComplianceCase[]
-  riskSignals      RiskSignal[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents       Document[]
+  transactions    Transaction[]
+  complianceCases ComplianceCase[]
+  riskSignals     RiskSignal[]
 
   @@index([organizationId])
   @@index([externalReference])
@@ -285,30 +300,30 @@ model BusinessProfile {
 }
 
 model Document {
-  id                    String        @id @default(cuid())
-  organizationId        String
-  customerProfileId     String?
-  businessProfileId     String?
-  complianceCaseId      String?
-  type                  DocumentType
-  status                DocumentStatus @default(UPLOADED)
-  originalFileName      String
-  mimeType              String
-  sizeBytes             Int
-  storageKey            String
-  checksumSha256        String?
-  extractedText         String?
-  extractionMetadataJson String?      @db.Text
-  uploadedByUserId      String
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  deletedAt             DateTime?
+  id                     String         @id @default(cuid())
+  organizationId         String
+  customerProfileId      String?
+  businessProfileId      String?
+  complianceCaseId       String?
+  type                   DocumentType
+  status                 DocumentStatus @default(UPLOADED)
+  originalFileName       String
+  mimeType               String
+  sizeBytes              Int
+  storageKey             String
+  checksumSha256         String?
+  extractedText          String?
+  extractionMetadataJson String?        @db.Text
+  uploadedByUserId       String
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  deletedAt              DateTime?
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customerProfile  CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
-  businessProfile  BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
-  complianceCase   ComplianceCase?  @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
-  uploadedBy       User             @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  businessProfile BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+  complianceCase  ComplianceCase?  @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
+  uploadedBy      User             @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
 
   policyDocuments PolicyDocument[]
 
@@ -322,71 +337,77 @@ model Document {
 }
 
 model Transaction {
-  id                  String              @id @default(cuid())
-  organizationId      String
-  customerProfileId   String?
-  businessProfileId   String?
-  complianceCaseId    String?
-  externalReference   String?
-  direction           TransactionDirection
-  amount              Decimal             @db.Decimal(19, 4)
-  currency            String
-  counterpartyName    String?
-  counterpartyAccount String?
-  counterpartyCountry String?
-  paymentRail         String?
-  transactionType     String?
-  description         String?
-  occurredAt          DateTime
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                       String               @id @default(cuid())
+  organizationId           String
+  customerProfileId        String?
+  businessProfileId        String?
+  complianceCaseId         String?
+  transactionImportBatchId String?
+  externalReference        String?
+  direction                TransactionDirection
+  amount                   Decimal              @db.Decimal(19, 4)
+  currency                 String
+  counterpartyName         String?
+  counterpartyAccount      String?
+  counterpartyCountry      String?
+  paymentRail              String?
+  transactionType          String?
+  description              String?
+  occurredAt               DateTime
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customerProfile  CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
-  businessProfile  BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
-  complianceCase   ComplianceCase?  @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
-  riskSignals      RiskSignal[]
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerProfile        CustomerProfile?        @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  businessProfile        BusinessProfile?        @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+  complianceCase         ComplianceCase?         @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
+  transactionImportBatch TransactionImportBatch? @relation(fields: [transactionImportBatchId], references: [id], onDelete: SetNull)
+  riskSignals            RiskSignal[]
 
+  @@unique([organizationId, externalReference])
   @@index([organizationId])
   @@index([customerProfileId])
   @@index([businessProfileId])
   @@index([complianceCaseId])
+  @@index([transactionImportBatchId])
   @@index([externalReference])
   @@index([occurredAt])
   @@index([createdAt])
   @@index([direction])
+  @@index([counterpartyCountry])
+  @@index([amount])
 }
 
 model ComplianceCase {
-  id                  String     @id @default(cuid())
-  organizationId      String
-  customerProfileId   String?
-  businessProfileId   String?
-  title               String
-  description         String?
-  status              CaseStatus @default(OPEN)
-  riskLevel           RiskLevel  @default(UNKNOWN)
-  assignedToUserId    String?
-  openedByUserId      String
-  openedAt            DateTime   @default(now())
-  closedAt            DateTime?
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
-  deletedAt           DateTime?
+  id                String     @id @default(cuid())
+  organizationId    String
+  customerProfileId String?
+  businessProfileId String?
+  title             String
+  description       String?
+  status            CaseStatus @default(OPEN)
+  riskLevel         RiskLevel  @default(UNKNOWN)
+  assignedToUserId  String?
+  openedByUserId    String
+  openedAt          DateTime   @default(now())
+  closedAt          DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  deletedAt         DateTime?
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customerProfile  CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
-  businessProfile  BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
-  assignedTo       User?            @relation("AssignedToUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
-  openedBy         User             @relation("OpenedByUser", fields: [openedByUserId], references: [id], onDelete: Restrict)
-  documents        Document[]
-  transactions     Transaction[]
-  notes            CaseNote[]
-  riskSignals      RiskSignal[]
-  riskAssessments  RiskAssessment[]
-  riskMemos        RiskMemo[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerProfile   CustomerProfile?   @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  businessProfile   BusinessProfile?   @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+  assignedTo        User?              @relation("AssignedToUser", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  openedBy          User               @relation("OpenedByUser", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  documents         Document[]
+  transactions      Transaction[]
+  notes             CaseNote[]
+  riskSignals       RiskSignal[]
+  riskAssessments   RiskAssessment[]
+  riskMemos         RiskMemo[]
   approvalDecisions ApprovalDecision[]
-  agentRuns        AgentRun[]
+  agentRuns         AgentRun[]
 
   @@index([organizationId])
   @@index([customerProfileId])
@@ -399,14 +420,14 @@ model ComplianceCase {
 }
 
 model CaseNote {
-  id               String            @id @default(cuid())
+  id               String             @id @default(cuid())
   organizationId   String
   complianceCaseId String
   authorUserId     String
-  body             String            @db.Text
+  body             String             @db.Text
   visibility       CaseNoteVisibility @default(INTERNAL)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   deletedAt        DateTime?
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -421,18 +442,19 @@ model CaseNote {
 }
 
 model RiskSignal {
-  id                  String            @id @default(cuid())
-  organizationId      String
-  complianceCaseId    String?
-  customerProfileId   String?
-  businessProfileId   String?
-  transactionId       String?
-  ruleId              String
-  title               String
-  description         String            @db.Text
-  severity            RiskSignalSeverity
-  evidenceJson        String?           @db.Text
-  createdAt           DateTime          @default(now())
+  id                String             @id @default(cuid())
+  organizationId    String
+  complianceCaseId  String?
+  customerProfileId String?
+  businessProfileId String?
+  transactionId     String?
+  ruleId            String
+  title             String
+  description       String             @db.Text
+  severity          RiskSignalSeverity
+  evidenceJson      String?            @db.Text
+  evidenceHash      String?
+  createdAt         DateTime           @default(now())
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   complianceCase  ComplianceCase?  @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
@@ -440,6 +462,7 @@ model RiskSignal {
   businessProfile BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
   transaction     Transaction?     @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
+  @@unique([organizationId, ruleId, evidenceHash])
   @@index([organizationId])
   @@index([complianceCaseId])
   @@index([customerProfileId])
@@ -447,19 +470,20 @@ model RiskSignal {
   @@index([transactionId])
   @@index([severity])
   @@index([createdAt])
+  @@index([evidenceHash])
 }
 
 model RiskAssessment {
-  id                  String     @id @default(cuid())
+  id                  String    @id @default(cuid())
   organizationId      String
   complianceCaseId    String
   riskLevel           RiskLevel
   score               Int?
-  summary             String     @db.Text
-  evidenceJson        String?    @db.Text
+  summary             String    @db.Text
+  evidenceJson        String?   @db.Text
   createdByUserId     String?
   createdByAgentRunId String?
-  createdAt           DateTime   @default(now())
+  createdAt           DateTime  @default(now())
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   complianceCase ComplianceCase @relation(fields: [complianceCaseId], references: [id], onDelete: Cascade)
@@ -473,22 +497,22 @@ model RiskAssessment {
 }
 
 model RiskMemo {
-  id                      String    @id @default(cuid())
-  organizationId          String
-  complianceCaseId        String
-  agentRunId              String?
-  executiveSummary        String    @db.Text
-  profileSummary          String    @db.Text
-  documentReview          String    @db.Text
-  transactionReview       String    @db.Text
-  riskSignalsSummary      String    @db.Text
-  missingInformation      String    @db.Text
-  recommendedAction       String    @db.Text
-  evidenceReferencesJson  String?   @db.Text
-  limitations             String    @db.Text
-  acceptedByUserId        String?
-  acceptedAt              DateTime?
-  createdAt               DateTime  @default(now())
+  id                     String    @id @default(cuid())
+  organizationId         String
+  complianceCaseId       String
+  agentRunId             String?
+  executiveSummary       String    @db.Text
+  profileSummary         String    @db.Text
+  documentReview         String    @db.Text
+  transactionReview      String    @db.Text
+  riskSignalsSummary     String    @db.Text
+  missingInformation     String    @db.Text
+  recommendedAction      String    @db.Text
+  evidenceReferencesJson String?   @db.Text
+  limitations            String    @db.Text
+  acceptedByUserId       String?
+  acceptedAt             DateTime?
+  createdAt              DateTime  @default(now())
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   complianceCase ComplianceCase @relation(fields: [complianceCaseId], references: [id], onDelete: Cascade)
@@ -501,14 +525,14 @@ model RiskMemo {
 }
 
 model ApprovalDecision {
-  id                   String                 @id @default(cuid())
+  id                   String               @id @default(cuid())
   organizationId       String
   complianceCaseId     String
   decision             ApprovalDecisionType
-  reason               String                 @db.Text
-  evidenceSnapshotJson String?                @db.Text
+  reason               String               @db.Text
+  evidenceSnapshotJson String?              @db.Text
   reviewerUserId       String
-  createdAt            DateTime               @default(now())
+  createdAt            DateTime             @default(now())
 
   organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   complianceCase ComplianceCase @relation(fields: [complianceCaseId], references: [id], onDelete: Cascade)
@@ -534,9 +558,9 @@ model PolicyDocument {
   updatedAt       DateTime     @updatedAt
   deletedAt       DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  document     Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("PolicyDocumentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdBy    User          @relation("PolicyDocumentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
   chunks       PolicyChunk[]
 
   @@index([organizationId])
@@ -587,8 +611,34 @@ model AuditEvent {
   @@index([createdAt])
 }
 
+model TransactionImportBatch {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  uploadedByUserId String
+  sourceDocumentId String?
+  fileName         String
+  status           TransactionImportStatus @default(PENDING)
+  mode             TransactionImportMode
+  totalRows        Int                     @default(0)
+  validRows        Int                     @default(0)
+  importedRows     Int                     @default(0)
+  skippedRows      Int                     @default(0)
+  failedRows       Int                     @default(0)
+  errorSummaryJson String?                 @db.Text
+  createdAt        DateTime                @default(now())
+  completedAt      DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy   User          @relation("UploadedByUser", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  transactions Transaction[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model AgentRun {
-  id               String        @id @default(cuid())
+  id               String         @id @default(cuid())
   organizationId   String
   complianceCaseId String?
   agentType        AgentType
@@ -597,14 +647,14 @@ model AgentRun {
   promptVersion    String
   inputHash        String
   status           AgentRunStatus @default(PENDING)
-  outputJson       String?       @db.Text
-  errorMessage     String?       @db.Text
-  tokenUsageJson   String?       @db.Text
-  startedAt        DateTime      @default(now())
+  outputJson       String?        @db.Text
+  errorMessage     String?        @db.Text
+  tokenUsageJson   String?        @db.Text
+  startedAt        DateTime       @default(now())
   completedAt      DateTime?
-  createdAt        DateTime      @default(now())
+  createdAt        DateTime       @default(now())
 
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   complianceCase ComplianceCase? @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])

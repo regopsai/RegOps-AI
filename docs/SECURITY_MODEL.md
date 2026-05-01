@@ -31,9 +31,9 @@ Permissions are enforced at the API and server-page layer based on the user's `O
 |---|---|
 | **OWNER** | All permissions |
 | **ADMIN** | All permissions |
-| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents read/upload/archive, transactions, policies, audit logs, evidence export, AI risk memo |
-| **COMPLIANCE_ANALYST** | Read/write cases, documents read/upload (no archive), transactions, policies read, AI risk memo |
-| **READ_ONLY_AUDITOR** | Read-only access to cases, documents read/download (no upload/archive), transactions, policies, audit logs, evidence export |
+| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents read/upload/archive, transactions read/import, policies, audit logs, evidence export, AI risk memo |
+| **COMPLIANCE_ANALYST** | Read/write cases, documents read/upload (no archive), transactions read/import, policies read, AI risk memo |
+| **READ_ONLY_AUDITOR** | Read-only access to cases, documents read/download (no upload/archive), transactions read (no import), policies, audit logs, evidence export |
 
 ## Rate Limiting
 Login attempts are rate-limited per IP (5 attempts per 15 minutes). The current implementation uses an in-memory store suitable for local development only. Production deployments must replace this with a distributed rate limiter (e.g., Redis, Upstash, or cloud WAF rules).
@@ -81,6 +81,17 @@ All significant actions (case creation, update, assignment, status change, note 
 | Download | `documents:read` | All roles |
 | Archive | `documents:archive` | OWNER, ADMIN, COMPLIANCE_MANAGER |
 | List/View | `documents:read` | All roles |
+
+### Transaction Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Import | `transactions:import` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
+| List/View | `transactions:read` | All roles |
+
+### Risk Signal Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Run checks | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 
 ### Text Extraction Behavior
 - **PDF**: Extracted via pdfjs-dist (text-based PDFs only). Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.

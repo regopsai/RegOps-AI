@@ -11,12 +11,14 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
    - Assignment to organization members
 2. **Customer & Business Profiles**: Read-only profile views with related cases, transactions, documents, and risk signals.
 3. **Document & Evidence Management**: Secure upload, storage, download, and archive of compliance documents. Server-side file validation (magic bytes, MIME, extension, size, SHA-256). Text extraction for PDF, TXT, CSV. Images accepted without OCR.
-3. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
+4. **Transaction Import**: CSV import with validation, deduplication (skip/fail modes), batch tracking, and linking to customers/businesses/cases.
+5. **Deterministic AML Risk Signals**: Rule-based risk detection (high-value, structuring, high-risk country, rapid flow, many counterparties, missing profile data, missing documents). Idempotent generation with evidence hashing.
+6. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
 4. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
 5. **Audit Trail**: Immutable event log for every case action and decision.
 6. **Evidence Management**: Attach and export documents and evidence tied to cases.
 7. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
-8. **RBAC**: Role-based access control with 5 roles and 21 permissions.
+8. **RBAC**: Role-based access control with 5 roles and 22 permissions.
 
 ## Non-Goals (for MVP)
 - Real-time transaction monitoring
@@ -79,6 +81,8 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 | documents:read | ✓ | ✓ | ✓ | ✓ | ✓ |
 | documents:upload | ✓ | ✓ | ✓ | ✓ | — |
 | documents:archive | ✓ | ✓ | ✓ | — | — |
+| transactions:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| transactions:import | ✓ | ✓ | ✓ | ✓ | — |
 | transactions:read | ✓ | ✓ | ✓ | ✓ | ✓ |
 | transactions:import | ✓ | ✓ | ✓ | ✓ | — |
 | policies:read | ✓ | ✓ | ✓ | ✓ | ✓ |

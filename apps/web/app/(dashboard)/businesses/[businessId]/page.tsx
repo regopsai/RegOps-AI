@@ -24,7 +24,7 @@ export default async function BusinessDetailPage({
         take: 10,
         include: { assignedTo: { select: { name: true, email: true } } },
       },
-      transactions: { orderBy: { occurredAt: "desc" }, take: 10 },
+      transactions: { orderBy: { occurredAt: "desc" }, take: 10, include: { riskSignals: { orderBy: { createdAt: "desc" }, take: 5 } } },
       documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 10, include: { uploadedBy: { select: { id: true, name: true, email: true } } } },
       riskSignals: { orderBy: { createdAt: "desc" }, take: 20 },
     },
@@ -92,15 +92,21 @@ export default async function BusinessDetailPage({
                       <th className="pb-2 pr-4">Reference</th>
                       <th className="pb-2 pr-4">Direction</th>
                       <th className="pb-2 pr-4">Amount</th>
+                      <th className="pb-2 pr-4">Counterparty</th>
                       <th className="pb-2 pr-4">Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {business.transactions.map((t) => (
                       <tr key={t.id} className="border-b border-slate-100">
-                        <td className="py-2 pr-4">{t.externalReference ?? "—"}</td>
+                        <td className="py-2 pr-4">
+                          <Link href={`/transactions/${t.id}`} className="text-blue-600 hover:underline">
+                            {t.externalReference ?? "—"}
+                          </Link>
+                        </td>
                         <td className="py-2 pr-4">{t.direction}</td>
                         <td className="py-2 pr-4">{t.amount.toString()} {t.currency}</td>
+                        <td className="py-2 pr-4">{t.counterpartyName ?? "—"}</td>
                         <td className="py-2 pr-4">{new Date(t.occurredAt).toLocaleDateString()}</td>
                       </tr>
                     ))}

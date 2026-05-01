@@ -18,6 +18,7 @@ import {
   getBusinessService,
   getCaseAuditEventsService,
 } from "./case-service";
+import { generateRiskSignalsForCaseService } from "@/lib/risk/risk-service";
 
 function toContext(context: Awaited<ReturnType<typeof requirePermission>>) {
   return {
@@ -100,4 +101,10 @@ export async function getBusiness(businessId: string) {
 export async function getCaseAuditEvents(caseId: string) {
   const ctx = toContext(await requirePermission("cases:read"));
   return getCaseAuditEventsService(ctx, caseId);
+}
+
+export async function runCaseRiskChecks(caseId: string) {
+  const ctx = toContext(await requirePermission("cases:update"));
+  const result = await generateRiskSignalsForCaseService(ctx, caseId);
+  return result;
 }

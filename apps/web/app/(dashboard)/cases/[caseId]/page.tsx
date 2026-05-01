@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents } from "@/lib/cases/server";
+import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents, runCaseRiskChecks } from "@/lib/cases/server";
 import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
@@ -23,6 +23,8 @@ export default async function CaseDetailPage({
   const canUpdate = hasPermission(context.membership.role, "cases:update");
   const canAssign = hasPermission(context.membership.role, "cases:assign");
   const canUpload = hasPermission(context.membership.role, "documents:upload");
+  const canImport = hasPermission(context.membership.role, "transactions:import");
+  const canRunRiskChecks = hasPermission(context.membership.role, "cases:update");
   const canArchive = hasPermission(context.membership.role, "documents:archive");
 
   const members = await prisma.organizationMember.findMany({
@@ -168,6 +170,29 @@ export default async function CaseDetailPage({
 
           {/* Transactions */}
           <Card title={`Transactions (${caseData.transactions.length})`}>
+            <div className="mb-3 flex items-center gap-2">
+              {canImport && (
+                <Link
+                  href="/transactions/import"
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Import Transactions
+                </Link>
+              )}
+              {canRunRiskChecks && (
+                <form action={async () => {
+                  "use server";
+                  await runCaseRiskChecks(caseId);
+                }}>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Run Risk Checks
+                  </button>
+                </form>
+              )}
+            </div>
             {caseData.transactions.length === 0 ? (
               <p className="text-sm text-slate-500">No transactions linked.</p>
             ) : (
@@ -185,7 +210,11 @@ export default async function CaseDetailPage({
                   <tbody>
                     {caseData.transactions.map((t) => (
                       <tr key={t.id} className="border-b border-slate-100">
-                        <td className="py-2 pr-4">{t.externalReference ?? "—"}</td>
+                        <td className="py-2 pr-4">
+                          <Link href={`/transactions/${t.id}`} className="text-blue-600 hover:underline">
+                            {t.externalReference ?? "—"}
+                          </Link>
+                        </td>
                         <td className="py-2 pr-4">{t.direction}</td>
                         <td className="py-2 pr-4">{t.amount.toString()} {t.currency}</td>
                         <td className="py-2 pr-4">{t.counterpartyName ?? "—"}</td>
