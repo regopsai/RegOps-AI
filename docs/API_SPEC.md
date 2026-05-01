@@ -146,6 +146,10 @@ Returns full profile with related cases, transactions, documents, and risk signa
 | `CASE_ESCALATED` | Case escalated (seed) |
 | `RISK_SIGNAL_CREATED` | Risk signal generated |
 | `DOCUMENT_UPLOADED` | Document uploaded |
+| `DOCUMENT_DOWNLOADED` | Document downloaded |
+| `DOCUMENT_ARCHIVED` | Document archived |
+| `DOCUMENT_EXTRACTION_COMPLETED` | Text extraction succeeded |
+| `DOCUMENT_EXTRACTION_FAILED` | Text extraction failed |
 
 ## Data Validation
 
@@ -164,6 +168,56 @@ Normal UI operations can only set:
 - `CLOSED`
 
 `APPROVED` and `REJECTED` are reserved for the final approval decision workflow (later phase).
+
+## Document Management
+
+### API Routes
+
+#### `POST /api/documents/upload`
+**Permission:** `documents:upload`
+
+Multipart form upload with fields:
+- `file` — Required. Validated server-side for extension, MIME, magic bytes, size, SHA-256.
+- `type` — Required. One of: ID_DOCUMENT, PROOF_OF_ADDRESS, COMPANY_REGISTRATION, BENEFICIAL_OWNERSHIP, BANK_STATEMENT, TRANSACTION_CSV, COMPLIANCE_POLICY, OTHER.
+- `complianceCaseId` — Optional. Must belong to active org.
+- `customerProfileId` — Optional. Must belong to active org.
+- `businessProfileId` — Optional. Must belong to active org.
+
+At least one linked entity is required.
+
+**Side effects:** Creates Document record, stores file, writes `DOCUMENT_UPLOADED` audit event, runs text extraction, writes extraction audit event.
+
+#### `GET /api/documents/[documentId]/download`
+**Permission:** `documents:read`
+
+Returns the file as an attachment download. Writes `DOCUMENT_DOWNLOADED` audit event.
+
+#### `POST /api/documents/[documentId]/archive`
+**Permission:** `documents:upload`
+
+Soft-archives the document (status = ARCHIVED). Writes `DOCUMENT_ARCHIVED` audit event.
+
+### Service Functions (`lib/documents/document-service.ts`)
+
+- `uploadDocumentService` — Validates file, stores via storage provider, creates DB record, audits, extracts text.
+- `getDocumentDownloadService` — Verifies ownership, fetches from storage, audits.
+- `archiveDocumentService` — Soft-archive with audit.
+- `listDocumentsForCaseService`, `listDocumentsForCustomerService`, `listDocumentsForBusinessService` — Scoped listing.
+- `getDocumentService` — Scoped detail read.
+
+### File Validation
+- Allowed extensions: .pdf, .png, .jpg, .jpeg, .csv, .txt
+- Allowed MIME types: application/pdf, image/png, image/jpeg, text/csv, application/csv, text/plain
+- Magic bytes verified for PDF (%PDF), PNG (89 50 4E 47), JPEG (FF D8 FF)
+- Text files checked for null bytes (binary rejection)
+- Max size: 10MB default (configurable via `MAX_DOCUMENT_UPLOAD_BYTES`)
+- SHA-256 checksum computed and stored
+
+### Text Extraction
+- PDF: Extracted via pdfjs-dist (text-based PDFs only)
+- TXT/CSV: Read as UTF-8 text
+- Images: Marked as UNSUPPORTED (OCR deferred)
+- Extraction failures do not reject the upload
 
 ## Pages & Routes
 

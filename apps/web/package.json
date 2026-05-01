@@ -12,11 +12,14 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1040.0",
+    "@aws-sdk/s3-request-presigner": "^3.1040.0",
     "@regops-ai/database": "workspace:*",
     "@regops-ai/ui": "workspace:*",
     "bcryptjs": "^3.0.3",
     "next": "^15.3.1",
     "next-auth": "5.0.0-beta.31",
+    "pdfjs-dist": "^5.7.284",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "zod": "^4.4.1"

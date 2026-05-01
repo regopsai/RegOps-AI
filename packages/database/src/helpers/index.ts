@@ -21,3 +21,12 @@ export {
   listBusinessesForOrganization,
   getBusinessForOrganization,
 } from "./business-profile";
+export {
+  createDocumentForOrganization,
+  getDocumentForOrganization,
+  listDocumentsForCase,
+  listDocumentsForCustomer,
+  listDocumentsForBusiness,
+  archiveDocumentForOrganization,
+  updateDocumentExtractionForOrganization,
+} from "./document-queries";

@@ -10,6 +10,7 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
    - Case status updates (OPEN, IN_REVIEW, ESCALATED, CLOSED)
    - Assignment to organization members
 2. **Customer & Business Profiles**: Read-only profile views with related cases, transactions, documents, and risk signals.
+3. **Document & Evidence Management**: Secure upload, storage, download, and archive of compliance documents. Server-side file validation (magic bytes, MIME, extension, size, SHA-256). Text extraction for PDF, TXT, CSV. Images accepted without OCR.
 3. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
 4. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
 5. **Audit Trail**: Immutable event log for every case action and decision.

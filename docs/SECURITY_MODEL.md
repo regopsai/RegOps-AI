@@ -67,6 +67,13 @@ All significant actions (case creation, update, assignment, status change, note 
 - Only `createAuditEvent` is exposed; no update or delete helpers exist.
 - Every server action mutation creates at least one `AuditEvent` with actor, action, entity type, and metadata.
 
+## Document Upload Security
+- **File validation**: All uploads are validated server-side for allowed extension, MIME type, magic bytes, size limit, and SHA-256 checksum.
+- **Rejected formats**: Executable files, archives, scripts, and unknown formats are rejected.
+- **Storage isolation**: Files are stored with organization-scoped keys. Raw storage keys are never exposed to the client.
+- **No public URLs**: Downloads are served through protected API routes with RBAC checks.
+- **No malware scanning in this phase**: Malware scanning is not yet integrated. Production deployments must add AV scanning before accepting untrusted uploads.
+
 ## Data Handling
 - PII and sensitive documents are encrypted at rest.
 - Credentials and API keys are stored in environment variables, never in source code.

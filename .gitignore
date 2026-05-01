@@ -45,3 +45,7 @@ pnpm-debug.log*
 *.seed
 *.pid.lock
 *.tsbuildinfo
+
+# Local storage
+.regops-storage
+var/storage

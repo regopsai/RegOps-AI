@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents } from "@/lib/cases/server";
-import { requirePermission, requireOrganizationContext } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
 import Link from "next/link";
+import { DocumentUpload } from "../../components/document-upload";
+import { DocumentList } from "../../components/document-list";
 
 export default async function CaseDetailPage({
   params,
@@ -20,6 +22,7 @@ export default async function CaseDetailPage({
 
   const canUpdate = hasPermission(context.membership.role, "cases:update");
   const canAssign = hasPermission(context.membership.role, "cases:assign");
+  const canUpload = hasPermission(context.membership.role, "documents:upload");
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: context.organization.id, status: "ACTIVE" },
@@ -27,6 +30,12 @@ export default async function CaseDetailPage({
   });
 
   const auditEvents = await getCaseAuditEvents(caseId);
+
+  const documents = await prisma.document.findMany({
+    where: { organizationId: context.organization.id, complianceCaseId: caseId, deletedAt: null },
+    include: { uploadedBy: { select: { id: true, name: true, email: true } } },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="space-y-6">
@@ -189,21 +198,16 @@ export default async function CaseDetailPage({
           </Card>
 
           {/* Documents */}
-          <Card title={`Documents (${caseData.documents.length})`}>
-            {caseData.documents.length === 0 ? (
-              <p className="text-sm text-slate-500">No documents linked.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {caseData.documents.map((d) => (
-                  <li key={d.id} className="py-2 text-sm">
-                    <span className="font-medium text-slate-900">{d.originalFileName}</span>
-                    <span className="ml-2 text-xs text-slate-500">
-                      {d.type} · {d.status} · {(d.sizeBytes / 1024).toFixed(1)} KB
-                    </span>
-                  </li>
-                ))}
-              </ul>
+          <Card title={`Documents (${documents.length})`}>
+            {canUpload && (
+              <DocumentUpload entityType="case" entityId={caseId} />
             )}
+            <div className="mt-3">
+              <DocumentList
+                documents={documents}
+                canArchive={canUpload}
+              />
+            </div>
           </Card>
 
           {/* Notes */}

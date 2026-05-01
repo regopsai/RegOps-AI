@@ -124,6 +124,14 @@ pnpm test
   - Audit events: every mutation writes a correctly scoped `AuditEvent`.
   - Status restrictions: APPROVED/REJECTED rejected, OPEN/IN_REVIEW/ESCALATED/CLOSED accepted.
   - Assignment validation: only active org members can be assigned.
+- **Document validation**: Magic bytes, MIME type, extension, size limit, SHA-256 checksum.
+- **Storage provider tests**: Local put/get/delete, path traversal blocking, S3 config error.
+- **Document service integration tests** (real Postgres):
+  - Tenant isolation: org A cannot read/download/archive org B documents.
+  - Cross-org linking blocked: cannot upload document linked to org B case/customer/business.
+  - RBAC: auditor can read/download but cannot upload/archive; analyst can upload; manager/owner can archive.
+  - Audit events: DOCUMENT_UPLOADED, DOCUMENT_DOWNLOADED, DOCUMENT_ARCHIVED, DOCUMENT_EXTRACTION_COMPLETED/FAILED.
+  - Text extraction: PDF text extraction, TXT/CSV extraction, images marked unsupported.
 
 ## Tech Stack
 

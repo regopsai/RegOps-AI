@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth/server";
+import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
 import Link from "next/link";
+import { DocumentUpload } from "../../components/document-upload";
+import { DocumentList } from "../../components/document-list";
 
 export default async function BusinessDetailPage({
   params,
@@ -10,6 +13,7 @@ export default async function BusinessDetailPage({
 }) {
   const { businessId } = await params;
   const context = await requirePermission("cases:read");
+  const canUpload = hasPermission(context.membership.role, "documents:upload");
 
   const business = await prisma.businessProfile.findFirst({
     where: { id: businessId, organizationId: context.organization.id, deletedAt: null },
@@ -20,7 +24,7 @@ export default async function BusinessDetailPage({
         include: { assignedTo: { select: { name: true, email: true } } },
       },
       transactions: { orderBy: { occurredAt: "desc" }, take: 10 },
-      documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 10 },
+      documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 10, include: { uploadedBy: { select: { id: true, name: true, email: true } } } },
       riskSignals: { orderBy: { createdAt: "desc" }, take: 20 },
     },
   });
@@ -106,18 +110,15 @@ export default async function BusinessDetailPage({
           </ProfileSection>
 
           <ProfileSection title={`Documents (${business.documents.length})`}>
-            {business.documents.length === 0 ? (
-              <p className="text-sm text-slate-500">No documents.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {business.documents.map((d) => (
-                  <li key={d.id} className="py-2 text-sm">
-                    <span className="font-medium text-slate-900">{d.originalFileName}</span>
-                    <span className="ml-2 text-xs text-slate-500">{d.type} · {d.status}</span>
-                  </li>
-                ))}
-              </ul>
+            {canUpload && (
+              <DocumentUpload entityType="business" entityId={businessId} />
             )}
+            <div className="mt-3">
+              <DocumentList
+                documents={business.documents}
+                canArchive={canUpload}
+              />
+            </div>
           </ProfileSection>
         </div>
 
