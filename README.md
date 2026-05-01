@@ -70,6 +70,24 @@ The seed script creates these users (all with the same dev password):
 
 **Dev password:** `RegOpsDev123!`
 
+## Application Features
+
+### Case Management
+- **Cases list** (`/cases`) — Filter by status, risk level, subject type, assignee; search by title/customer/business name
+- **New case** (`/cases/new`) — Create cases linked to individual customers or businesses
+- **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, audit timeline; update status, assign, add notes (RBAC-enforced)
+
+### Customer & Business Profiles
+- **Customers** (`/customers`) — Read-only list with filters and search
+- **Customer detail** (`/customers/[customerId]`) — Profile summary, related cases, transactions, documents, risk signals
+- **Businesses** (`/businesses`) — Read-only list with filters and search
+- **Business detail** (`/businesses/[businessId]`) — Profile summary, related cases, transactions, documents, risk signals
+
+### Auth & Access Control
+- Role-based access control with 5 roles and 20 permissions
+- Organization-scoped data isolation
+- Every mutation creates an append-only audit event
+
 ## Auth Architecture
 
 Auth.js v5 is configured with an edge-safe split:

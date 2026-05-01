@@ -38,11 +38,20 @@ Permissions are enforced at the API and server-page layer based on the user's `O
 ## Rate Limiting
 Login attempts are rate-limited per IP (5 attempts per 15 minutes). The current implementation uses an in-memory store suitable for local development only. Production deployments must replace this with a distributed rate limiter (e.g., Redis, Upstash, or cloud WAF rules).
 
+## Server Action Security
+All mutations are implemented as Next.js Server Actions with the following enforcement:
+- **`requirePermission(permission)`** is called before any database operation. Unauthorized users are redirected to `/dashboard`.
+- **`requireOrganizationContext()`** ensures the user has an active membership in the current organization.
+- **Tenant isolation** — Every query includes `organizationId`. Cases, customers, businesses, and audit events are never fetched by `id` alone.
+- **Input validation** — All form inputs are validated with Zod schemas before database writes.
+- **Status restrictions** — Normal UI status updates are restricted to OPEN, IN_REVIEW, ESCALATED, CLOSED. APPROVED and REJECTED are reserved for the final decision workflow (later phase).
+
 ## Audit Trail
-All significant actions (case creation, decision, AI invocation, evidence upload, login, organization switch) are recorded in an append-only audit log. Logs are tamper-evident and scoped by tenant.
+All significant actions (case creation, update, assignment, status change, note creation, decision, AI invocation, evidence upload, login, organization switch) are recorded in an append-only audit log. Logs are tamper-evident and scoped by tenant.
 
 - `AuditEvent` has no `updatedAt` field.
 - Only `createAuditEvent` is exposed; no update or delete helpers exist.
+- Every server action mutation creates at least one `AuditEvent` with actor, action, entity type, and metadata.
 
 ## Data Handling
 - PII and sensitive documents are encrypted at rest.

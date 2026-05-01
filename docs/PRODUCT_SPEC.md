@@ -5,17 +5,24 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 
 ## MVP Scope
 1. **Case Management**: Create, view, and manage compliance cases (KYB/KYC/AML).
-2. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
-3. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
-4. **Audit Trail**: Immutable event log for every case action and decision.
-5. **Evidence Management**: Attach and export documents and evidence tied to cases.
-6. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
+   - Case list with filters (status, risk level, subject type, assignee) and search
+   - Case workspace with notes, risk signals, transactions, documents, audit timeline
+   - Case status updates (OPEN, IN_REVIEW, ESCALATED, CLOSED)
+   - Assignment to organization members
+2. **Customer & Business Profiles**: Read-only profile views with related cases, transactions, documents, and risk signals.
+3. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
+4. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
+5. **Audit Trail**: Immutable event log for every case action and decision.
+6. **Evidence Management**: Attach and export documents and evidence tied to cases.
+7. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
+8. **RBAC**: Role-based access control with 5 roles and 20 permissions.
 
 ## Non-Goals (for MVP)
 - Real-time transaction monitoring
 - Regulatory filing automation
 - Public API for external integrators
 - Mobile-native applications
+- Approval decisions (APPROVED/REJECTED) — reserved for later phase
 
 ## Target Users
 - Compliance officers

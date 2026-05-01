@@ -240,6 +240,88 @@ async function main() {
   });
   console.log(`ComplianceCase: ${businessCase.title}`);
 
+  const individualCaseNote = await prisma.caseNote.create({
+    data: {
+      organizationId: org.id,
+      complianceCaseId: individualCase.id,
+      authorUserId: analystUser.id,
+      body: "Initial review complete. Customer has consistent salary deposits. No adverse media found. Awaiting supervisor sign-off.",
+      visibility: CaseNoteVisibility.INTERNAL,
+    },
+  });
+  console.log(`CaseNote created for individual case`);
+
+  const businessCaseNote1 = await prisma.caseNote.create({
+    data: {
+      organizationId: org.id,
+      complianceCaseId: businessCase.id,
+      authorUserId: managerUser.id,
+      body: "Escalated to senior compliance. Business incorporated in IE but operating primarily in ES. Needs enhanced due diligence.",
+      visibility: CaseNoteVisibility.AUDITOR_VISIBLE,
+    },
+  });
+
+  const businessCaseNote2 = await prisma.caseNote.create({
+    data: {
+      organizationId: org.id,
+      complianceCaseId: businessCase.id,
+      authorUserId: ownerUser.id,
+      body: "Approved EDD scope. Requesting UBO declarations and source of funds documentation.",
+      visibility: CaseNoteVisibility.INTERNAL,
+    },
+  });
+  console.log(`CaseNotes created for business case`);
+
+  const docs = await prisma.document.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        customerProfileId: individualCustomer.id,
+        originalFileName: "maria_garcia_passport.pdf",
+        storageKey: "seed/maria_garcia_passport.pdf",
+        type: DocumentType.ID_DOCUMENT,
+        status: DocumentStatus.UPLOADED,
+        sizeBytes: 245760,
+        mimeType: "application/pdf",
+        uploadedByUserId: managerUser.id,
+      },
+      {
+        organizationId: org.id,
+        customerProfileId: individualCustomer.id,
+        originalFileName: "maria_garcia_payslip_jan_2024.pdf",
+        storageKey: "seed/maria_garcia_payslip_jan_2024.pdf",
+        type: DocumentType.BANK_STATEMENT,
+        status: DocumentStatus.UPLOADED,
+        sizeBytes: 184320,
+        mimeType: "application/pdf",
+        uploadedByUserId: analystUser.id,
+      },
+      {
+        organizationId: org.id,
+        businessProfileId: businessCustomer.id,
+        originalFileName: "global_payments_certificate_of_incorporation.pdf",
+        storageKey: "seed/global_payments_certificate_of_incorporation.pdf",
+        type: DocumentType.COMPANY_REGISTRATION,
+        status: DocumentStatus.PROCESSING,
+        sizeBytes: 512000,
+        mimeType: "application/pdf",
+        uploadedByUserId: managerUser.id,
+      },
+      {
+        organizationId: org.id,
+        businessProfileId: businessCustomer.id,
+        originalFileName: "global_payments_annual_report_2023.pdf",
+        storageKey: "seed/global_payments_annual_report_2023.pdf",
+        type: DocumentType.BANK_STATEMENT,
+        status: DocumentStatus.PROCESSING,
+        sizeBytes: 1048576,
+        mimeType: "application/pdf",
+        uploadedByUserId: ownerUser.id,
+      },
+    ],
+  });
+  console.log(`Documents created: ${docs.count}`);
+
   const riskSignals = await prisma.riskSignal.createMany({
     data: [
       {
@@ -368,9 +450,41 @@ async function main() {
         entityId: "batch",
         metadataJson: JSON.stringify({ count: 3 }),
       },
+      {
+        organizationId: org.id,
+        actorUserId: analystUser.id,
+        action: "CASE_NOTE_CREATED",
+        entityType: "CaseNote",
+        entityId: individualCaseNote.id,
+        metadataJson: JSON.stringify({ complianceCaseId: individualCase.id, visibility: "INTERNAL" }),
+      },
+      {
+        organizationId: org.id,
+        actorUserId: managerUser.id,
+        action: "CASE_NOTE_CREATED",
+        entityType: "CaseNote",
+        entityId: businessCaseNote1.id,
+        metadataJson: JSON.stringify({ complianceCaseId: businessCase.id, visibility: "AUDITOR_VISIBLE" }),
+      },
+      {
+        organizationId: org.id,
+        actorUserId: ownerUser.id,
+        action: "CASE_NOTE_CREATED",
+        entityType: "CaseNote",
+        entityId: businessCaseNote2.id,
+        metadataJson: JSON.stringify({ complianceCaseId: businessCase.id, visibility: "INTERNAL" }),
+      },
+      {
+        organizationId: org.id,
+        actorUserId: managerUser.id,
+        action: "DOCUMENT_UPLOADED",
+        entityType: "Document",
+        entityId: "batch",
+        metadataJson: JSON.stringify({ count: 4, customerProfileId: individualCustomer.id, businessProfileId: businessCustomer.id }),
+      },
     ],
   });
-  console.log("AuditEvents created: 4");
+  console.log("AuditEvents created: 8");
 
   console.log("Seeding finished.");
 }
