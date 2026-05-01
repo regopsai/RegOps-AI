@@ -44,7 +44,7 @@ All mutations are implemented as Next.js Server Actions with the following enfor
 - **`requireOrganizationContext()`** ensures the user has an active membership in the current organization.
 - **Tenant isolation** — Every query includes `organizationId`. Cases, customers, businesses, and audit events are never fetched by `id` alone.
 - **Input validation** — All form inputs are validated with Zod schemas before database writes.
-- **Status restrictions** — Normal UI status updates are restricted to OPEN, IN_REVIEW, ESCALATED, CLOSED. APPROVED and REJECTED are reserved for the final decision workflow (later phase).
+- **Status restrictions** — Normal UI status updates are restricted to OPEN, IN_REVIEW, ESCALATED, CLOSED. APPROVED and REJECTED are reserved for the final decision workflow only.
 
 ## Service Layer Architecture
 Business logic is extracted into testable service functions (`lib/cases/case-service.ts`) that accept an explicit `ActorContext` (`userId`, `organizationId`, `role`). This allows:
@@ -93,11 +93,26 @@ All significant actions (case creation, update, assignment, status change, note 
 |---|---|---|
 | Run checks | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 
+### Final Decision Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Make final decision | `cases:final_decision` | OWNER, ADMIN, COMPLIANCE_MANAGER |
+| View decision history | `cases:read` | All roles |
+
 ### AI Risk Memo Permissions
 | Action | Required Permission | Who Can |
 |---|---|---|
 | Generate memo | `ai:risk_memo` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 | Accept memo | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
+
+### Final Decision Safety
+- `ApprovalDecision` is immutable: no `updatedAt` field, no update helper, no delete helper exported from the database package.
+- Only the `makeFinalDecisionService` can set case status to `APPROVED` or `REJECTED`.
+- Normal `changeCaseStatusService` explicitly rejects `APPROVED` and `REJECTED`.
+- Terminal cases (`APPROVED`, `REJECTED`, `CLOSED`) reject new final decisions.
+- Evidence snapshots are safe: no extractedText, storageKey, note bodies, memo text, API keys, or raw prompts.
+- Audit event `APPROVAL_DECISION_CREATED` includes decision, previousStatus, newStatus, reviewerUserId, evidenceSnapshotVersion, approvalDecisionId, createdCaseNoteId, and latestRiskMemoId. It never includes the full reason, full snapshot, or sensitive content.
+- Decision creation, case status update, optional note creation, and audit events are all inside a single Prisma transaction.
 
 ### AI Provider Safety
 - `AI_PROVIDER=mock` is blocked in production unless `REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION=true`.

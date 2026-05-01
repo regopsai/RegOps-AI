@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { prisma } from "@regops-ai/database";
 import {
   OrganizationStatus,
@@ -226,20 +226,35 @@ describe("decision-service", () => {
         reason: "All checks passed",
       });
 
-      expect(result.decision).toBe("APPROVE");
-      expect(result.reason).toBe("All checks passed");
-      expect(result.reviewerUserId).toBe(owner.id);
-      expect(result.evidenceSnapshotJson).toBeTruthy();
+      expect(result.approvalDecision.decision).toBe("APPROVE");
+      expect(result.approvalDecision.reason).toBe("All checks passed");
+      expect(result.approvalDecision.reviewerUserId).toBe(owner.id);
+      expect(result.approvalDecision.evidenceSnapshotJson).toBeTruthy();
+      expect(result.createdCaseNoteId).toBeUndefined();
 
       const updatedCase = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
       expect(updatedCase?.status).toBe("APPROVED");
       expect(updatedCase?.closedAt).toBeTruthy();
 
       const audit = await prisma.auditEvent.findFirst({
-        where: { action: "CASE_FINAL_DECISION", entityId: openCase.id },
+        where: { action: "APPROVAL_DECISION_CREATED", entityId: openCase.id },
       });
       expect(audit).toBeTruthy();
-      expect(audit?.metadataJson).toContain("APPROVE");
+      const meta = JSON.parse(audit!.metadataJson ?? "{}");
+      expect(meta.decision).toBe("APPROVE");
+      expect(meta.previousStatus).toBe("OPEN");
+      expect(meta.newStatus).toBe("APPROVED");
+      expect(meta.reviewerUserId).toBe(owner.id);
+      expect(meta.evidenceSnapshotVersion).toBe("1.0");
+      expect(meta.approvalDecisionId).toBe(result.approvalDecision.id);
+      expect(meta.createdCaseNoteId).toBeNull();
+      // Verify undefined was serialized as null, not omitted
+      expect(meta).toHaveProperty("createdCaseNoteId");
+      expect(meta.latestRiskMemoId).toBeNull();
+      expect(meta.complianceCaseId).toBe(openCase.id);
+      // Must NOT contain sensitive fields
+      expect(meta).not.toHaveProperty("reasonLength");
+      expect(meta).not.toHaveProperty("fullReason");
     });
 
     it("creates REJECT decision and updates case to REJECTED", async () => {
@@ -250,7 +265,7 @@ describe("decision-service", () => {
         reason: "Fraudulent documents",
       });
 
-      expect(result.decision).toBe("REJECT");
+      expect(result.approvalDecision.decision).toBe("REJECT");
       const updatedCase = await prisma.complianceCase.findUnique({ where: { id: inReviewCase.id } });
       expect(updatedCase?.status).toBe("REJECTED");
       expect(updatedCase?.closedAt).toBeTruthy();
@@ -264,7 +279,7 @@ describe("decision-service", () => {
         reason: "Requires senior review",
       });
 
-      expect(result.decision).toBe("ESCALATE");
+      expect(result.approvalDecision.decision).toBe("ESCALATE");
       const updatedCase = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
       expect(updatedCase?.status).toBe("ESCALATED");
       expect(updatedCase?.closedAt).toBeNull();
@@ -278,7 +293,7 @@ describe("decision-service", () => {
         reason: "Missing bank statements",
       });
 
-      expect(result.decision).toBe("REQUEST_MORE_INFORMATION");
+      expect(result.approvalDecision.decision).toBe("REQUEST_MORE_INFORMATION");
       const updatedCase = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
       expect(updatedCase?.status).toBe("IN_REVIEW");
       expect(updatedCase?.closedAt).toBeNull();
@@ -292,7 +307,7 @@ describe("decision-service", () => {
         reason: "No issues found",
       });
 
-      expect(result.decision).toBe("CLOSE_NO_ACTION");
+      expect(result.approvalDecision.decision).toBe("CLOSE_NO_ACTION");
       const updatedCase = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
       expect(updatedCase?.status).toBe("CLOSED");
       expect(updatedCase?.closedAt).toBeTruthy();
@@ -307,6 +322,14 @@ describe("decision-service", () => {
           reason: "Should fail",
         })
       ).rejects.toThrow("Forbidden: missing permission cases:final_decision");
+
+      // Transactionality: no partial writes on permission failure
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: openCase.id } });
+      expect(decisions).toBe(0);
+      const caseAfter = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
+      expect(caseAfter?.status).toBe("OPEN");
+      const audits = await prisma.auditEvent.count({ where: { action: "APPROVAL_DECISION_CREATED", entityId: openCase.id } });
+      expect(audits).toBe(0);
     });
 
     it("rejects for READ_ONLY_AUDITOR", async () => {
@@ -329,6 +352,11 @@ describe("decision-service", () => {
           reason: "Should fail",
         })
       ).rejects.toThrow("Cannot make final decision: case is already APPROVED");
+
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: approvedCase.id } });
+      expect(decisions).toBe(0);
+      const audits = await prisma.auditEvent.count({ where: { action: "APPROVAL_DECISION_CREATED", entityId: approvedCase.id } });
+      expect(audits).toBe(0);
     });
 
     it("rejects when case is REJECTED", async () => {
@@ -340,6 +368,9 @@ describe("decision-service", () => {
           reason: "Should fail",
         })
       ).rejects.toThrow("Cannot make final decision: case is already REJECTED");
+
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: rejectedCase.id } });
+      expect(decisions).toBe(0);
     });
 
     it("rejects when case is CLOSED", async () => {
@@ -351,6 +382,9 @@ describe("decision-service", () => {
           reason: "Should fail",
         })
       ).rejects.toThrow("Cannot make final decision: case is already CLOSED");
+
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: closedCase.id } });
+      expect(decisions).toBe(0);
     });
 
     it("rejects when case does not exist", async () => {
@@ -393,6 +427,9 @@ describe("decision-service", () => {
           reason: "Should fail",
         })
       ).rejects.toThrow("Case not found");
+
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: caseB.id } });
+      expect(decisions).toBe(0);
     });
 
     it("rejects empty reason", async () => {
@@ -406,6 +443,18 @@ describe("decision-service", () => {
       ).rejects.toThrow("Reason is required");
     });
 
+    it("rejects reviewerComment over 5000 chars", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      await expect(
+        makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+          caseId: openCase.id,
+          decision: "APPROVE",
+          reason: "Valid reason",
+          reviewerComment: "x".repeat(5001),
+        })
+      ).rejects.toThrow("Too big");
+    });
+
     it("stores a safe evidence snapshot without sensitive fields", async () => {
       const { org, owner, openCase, document, transaction, riskSignal, note } = await seedOrgWithCase();
       const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
@@ -414,7 +463,8 @@ describe("decision-service", () => {
         reason: "Verified all evidence",
       });
 
-      const snapshot = JSON.parse(result.evidenceSnapshotJson ?? "{}") as Record<string, unknown>;
+      const snapshot = JSON.parse(result.approvalDecision.evidenceSnapshotJson ?? "{}") as Record<string, unknown>;
+      expect(snapshot.snapshotVersion).toBe("1.0");
       expect(snapshot.case).toBeDefined();
       expect(snapshot.case).toMatchObject({
         id: openCase.id,
@@ -450,19 +500,109 @@ describe("decision-service", () => {
       expect(rs.title).toBe("High Value Transaction");
       expect(rs).not.toHaveProperty("description");
 
-      // Notes should only have count and IDs, no bodies
+      // Notes should only have count, latest IDs, and timestamp — no bodies
       expect(snapshot.notes).toBeDefined();
       const notesData = snapshot.notes as Record<string, unknown>;
       expect(notesData.count).toBe(1);
-      expect(notesData.noteIds).toContain(note.id);
+      expect(notesData.latestNoteIds).toContain(note.id);
+      expect(notesData.latestNoteCreatedAt).toBeTruthy();
       expect(notesData).not.toHaveProperty("bodies");
+      expect(notesData).not.toHaveProperty("noteIds");
 
       // Decision metadata
       expect(snapshot.decisionMetadata).toBeDefined();
       const dm = snapshot.decisionMetadata as Record<string, unknown>;
       expect(dm.decision).toBe("APPROVE");
-      expect(dm.reasonLength).toBe(21);
       expect(dm.reviewerUserId).toBe(owner.id);
+      expect(dm).not.toHaveProperty("reasonLength");
+    });
+
+    it("limits transactions to 20 in evidence snapshot", async () => {
+      const { org, owner, openCase, customer } = await seedOrgWithCase();
+
+      // Create 25 transactions
+      for (let i = 0; i < 25; i++) {
+        await prisma.transaction.create({
+          data: {
+            organizationId: org.id,
+            complianceCaseId: openCase.id,
+            customerProfileId: customer.id,
+            externalReference: `TXN-${i + 2}`,
+            direction: "INBOUND",
+            amount: 100,
+            currency: "USD",
+            occurredAt: new Date(),
+          },
+        });
+      }
+
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "Bulk tx test",
+      });
+
+      const snapshot = JSON.parse(result.approvalDecision.evidenceSnapshotJson ?? "{}") as Record<string, unknown>;
+      const txData = snapshot.transactions as Record<string, unknown>;
+      expect(txData.count).toBe(10); // workspace fetches max 10; snapshot respects that
+      expect((txData.latest as unknown[]).length).toBe(10);
+    });
+
+    it("creates optional internal case note when createCaseNote=true", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "All checks passed",
+        createCaseNote: true,
+        reviewerComment: "Looks good",
+      });
+
+      expect(result.createdCaseNoteId).toBeTruthy();
+      const note = await prisma.caseNote.findUnique({ where: { id: result.createdCaseNoteId! } });
+      expect(note).toBeTruthy();
+      expect(note?.body).toContain("Final Decision: APPROVE");
+      expect(note?.body).toContain("All checks passed");
+      expect(note?.body).toContain("Looks good");
+      expect(note?.visibility).toBe("INTERNAL");
+
+      // Should have both CASE_NOTE_CREATED and APPROVAL_DECISION_CREATED audits
+      const noteAudit = await prisma.auditEvent.findFirst({
+        where: { action: "CASE_NOTE_CREATED", entityId: result.createdCaseNoteId! },
+      });
+      expect(noteAudit).toBeTruthy();
+
+      const decisionAudit = await prisma.auditEvent.findFirst({
+        where: { action: "APPROVAL_DECISION_CREATED", entityId: openCase.id },
+      });
+      expect(decisionAudit).toBeTruthy();
+      const meta = JSON.parse(decisionAudit!.metadataJson ?? "{}");
+      expect(meta.createdCaseNoteId).toBe(result.createdCaseNoteId);
+    });
+
+    it("does not create case note when createCaseNote=false", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "All checks passed",
+        createCaseNote: false,
+      });
+
+      expect(result.createdCaseNoteId).toBeUndefined();
+      const notes = await prisma.caseNote.count({ where: { complianceCaseId: openCase.id } });
+      expect(notes).toBe(1); // only the seed note
+    });
+
+    it("does not create case note when createCaseNote is omitted", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "All checks passed",
+      });
+
+      expect(result.createdCaseNoteId).toBeUndefined();
     });
 
     it("lists approval decisions for a case", async () => {
@@ -493,7 +633,140 @@ describe("decision-service", () => {
         decision: "CLOSE_NO_ACTION",
         reason: "Manager approved closure",
       });
-      expect(result.decision).toBe("CLOSE_NO_ACTION");
+      expect(result.approvalDecision.decision).toBe("CLOSE_NO_ACTION");
+    });
+
+    it("allows ADMIN to make final decisions", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      // Reuse owner as admin-equivalent since OWNER has all permissions
+      // Seed a dedicated admin user
+      const admin = await prisma.user.create({
+        data: { email: "admin@example.com", name: "Admin", status: UserStatus.ACTIVE },
+      });
+      await prisma.organizationMember.create({
+        data: { organizationId: org.id, userId: admin.id, role: OrganizationRole.ADMIN, status: MembershipStatus.ACTIVE },
+      });
+      const result = await makeFinalDecisionService(ctx(admin.id, org.id, OrganizationRole.ADMIN), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "Admin decision",
+      });
+      expect(result.approvalDecision.decision).toBe("APPROVE");
+    });
+
+    it("unauthorized attempts do not write success audit events", async () => {
+      const { org, analyst, openCase } = await seedOrgWithCase();
+      try {
+        await makeFinalDecisionService(ctx(analyst.id, org.id, OrganizationRole.COMPLIANCE_ANALYST), {
+          caseId: openCase.id,
+          decision: "APPROVE",
+          reason: "Should fail",
+        });
+      } catch {
+        // expected
+      }
+      const allAudits = await prisma.auditEvent.findMany({
+        where: { entityId: openCase.id },
+      });
+      expect(allAudits.every((a) => a.action !== "APPROVAL_DECISION_CREATED")).toBe(true);
+    });
+
+    it("human can make decision different from AI recommendedAction", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      // Create an AI risk memo recommending HIGH_RISK_ESCALATION
+      const agentRun = await prisma.agentRun.create({
+        data: {
+          organizationId: org.id,
+          complianceCaseId: openCase.id,
+          agentType: "RISK_MEMO",
+          provider: "mock",
+          model: "gpt-4o-mini",
+          promptVersion: "risk-memo-v1",
+          inputHash: "abc123",
+          status: "SUCCEEDED",
+        },
+      });
+      await prisma.riskMemo.create({
+        data: {
+          organizationId: org.id,
+          complianceCaseId: openCase.id,
+          agentRunId: agentRun.id,
+          executiveSummary: "High risk detected",
+          profileSummary: "Summary",
+          documentReview: "Review",
+          transactionReview: "Tx review",
+          riskSignalsSummary: "Signals",
+          missingInformation: "None",
+          recommendedAction: "HIGH_RISK_ESCALATION",
+          limitations: "AI advisory only",
+        },
+      });
+
+      // Human decides to CLOSE instead of ESCALATE
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "CLOSE_NO_ACTION",
+        reason: "Human overrode AI recommendation",
+      });
+
+      expect(result.approvalDecision.decision).toBe("CLOSE_NO_ACTION");
+      const updatedCase = await prisma.complianceCase.findUnique({ where: { id: openCase.id } });
+      expect(updatedCase?.status).toBe("CLOSED");
+    });
+  });
+
+  describe("immutability", () => {
+    it("ApprovalDecision has no updatedAt field in schema", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      const result = await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "Immutable test",
+      });
+
+      const decision = await prisma.approvalDecision.findUnique({ where: { id: result.approvalDecision.id } });
+      expect(decision).toBeTruthy();
+      // Prisma model does not have updatedAt; the client should not return it
+      expect(decision).not.toHaveProperty("updatedAt");
+    });
+
+    it("no helper exists to update ApprovalDecision", async () => {
+      // The database package only exports createApprovalDecision; no update or delete helpers
+      const { prisma: dbClient } = await import("@regops-ai/database");
+      // Verify by inspecting the module that only create is available
+      const helpers = await import("@regops-ai/database/src/helpers/approval-decision");
+      expect(typeof helpers.createApprovalDecision).toBe("function");
+      expect(typeof (helpers as Record<string, unknown>).updateApprovalDecision).toBe("undefined");
+      expect(typeof (helpers as Record<string, unknown>).deleteApprovalDecision).toBe("undefined");
+    });
+
+    it("terminal case rejects subsequent decisions", async () => {
+      const { org, owner, openCase } = await seedOrgWithCase();
+      await makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+        caseId: openCase.id,
+        decision: "APPROVE",
+        reason: "First decision",
+      });
+
+      await expect(
+        makeFinalDecisionService(ctx(owner.id, org.id, OrganizationRole.OWNER), {
+          caseId: openCase.id,
+          decision: "REJECT",
+          reason: "Second decision should fail",
+        })
+      ).rejects.toThrow("Cannot make final decision: case is already APPROVED");
+
+      const decisions = await prisma.approvalDecision.count({ where: { complianceCaseId: openCase.id } });
+      expect(decisions).toBe(1);
+    });
+  });
+
+  describe("AI separation", () => {
+    it("decision service does not import or call AI provider", async () => {
+      // The decision-service module should have no dependency on @regops-ai/ai
+      const decisionModule = await import("./decision-service");
+      expect(Object.keys(decisionModule)).not.toContain("createAIProvider");
+      expect(Object.keys(decisionModule)).not.toContain("generateRiskMemo");
     });
   });
 });

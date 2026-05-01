@@ -25,7 +25,7 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 - Regulatory filing automation
 - Public API for external integrators
 - Mobile-native applications
-- Approval decisions (APPROVED/REJECTED) — reserved for later phase
+- ~~Approval decisions (APPROVED/REJECTED)~~ — implemented in Phase 7
 - Policy Q&A chatbot — reserved for later phase
 - Autonomous compliance decisions — explicitly out of scope
 

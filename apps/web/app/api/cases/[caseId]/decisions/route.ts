@@ -21,10 +21,12 @@ export async function POST(
         caseId,
         decision: body.decision,
         reason: body.reason,
+        createCaseNote: body.createCaseNote,
+        reviewerComment: body.reviewerComment,
       }
     );
 
-    return NextResponse.json({ success: true, decision: result }, { status: 201 });
+    return NextResponse.json({ success: true, decision: result.approvalDecision, caseNoteId: result.createdCaseNoteId }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     if (message.includes("Forbidden")) {
@@ -36,7 +38,12 @@ export async function POST(
     if (message.includes("Cannot make final decision")) {
       return NextResponse.json({ error: message }, { status: 409 });
     }
-    if (message.includes("Reason is required") || message.includes("Invalid input")) {
+    if (
+      message.includes("Reason is required") ||
+      message.includes("Invalid input") ||
+      message.includes("Invalid option") ||
+      message.includes("Too big")
+    ) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

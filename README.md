@@ -165,6 +165,14 @@ pnpm test
   - AgentRun lifecycle, RiskMemo creation, audit events, failure handling, no ApprovalDecision creation, no case status change, RBAC enforcement, cross-org rejection.
 - **Risk memo acceptance integration tests**:
   - Acceptance workflow, case note creation, audit events, no ApprovalDecision creation, no case status change, idempotency, RBAC enforcement, cross-org rejection.
+- **Final approval decision integration tests**:
+  - All 5 decision types with correct status transitions, RBAC enforcement (OWNER/ADMIN/COMPLIANCE_MANAGER allowed; ANALYST/AUDITOR denied), terminal case rejection, cross-org isolation, empty reason rejection.
+  - Evidence snapshot safety: no extractedText, storageKey, note bodies, memo text, API keys.
+  - Transactionality: no partial writes on permission failure, terminal case rejection, or non-existent case.
+  - Immutability: no update/delete helpers, no updatedAt field, terminal cases reject subsequent decisions.
+  - AI separation: decision service does not import AI provider, human can override AI recommendation.
+  - Optional internal case note creation with reviewerComment.
+  - API route tests for 201/400/403/404/409 responses.
 
 ## Tech Stack
 

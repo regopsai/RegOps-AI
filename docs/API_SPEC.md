@@ -147,6 +147,7 @@ Returns full profile with related cases, transactions, documents, and risk signa
 | `RISK_SIGNAL_CREATED` | Risk signal generated |
 | `RISK_MEMO_GENERATED` | AI risk memo generated successfully |
 | `RISK_MEMO_GENERATION_FAILED` | AI risk memo generation failed |
+| `APPROVAL_DECISION_CREATED` | Human reviewer made a final decision on a case |
 | `RISK_MEMO_ACCEPTED` | Human reviewer accepted AI risk memo |
 | `DOCUMENT_UPLOADED` | Document uploaded |
 | `DOCUMENT_DOWNLOADED` | Document downloaded |
@@ -170,7 +171,7 @@ Normal UI operations can only set:
 - `ESCALATED`
 - `CLOSED`
 
-`APPROVED` and `REJECTED` are reserved for the final approval decision workflow (later phase).
+`APPROVED` and `REJECTED` are reserved for the final approval decision workflow only.
 
 ## Document Management
 
@@ -244,6 +245,11 @@ CSV columns:
 - `importTransactionsService` — Parses CSV, validates rows, resolves linked entities, handles deduplication, creates batch and transactions, audits.
 - `listTransactionsService` — Scoped listing with filters (direction, currency, country, date range, amount, search).
 - `getTransactionService` — Scoped detail read with linked entities and risk signals.
+
+### Final Decision Service Functions (`lib/cases/decision-service.ts`)
+
+- `makeFinalDecisionService` — RBAC check, terminal case guard, evidence snapshot builder, atomic transaction (decision + status + optional note + audit).
+- `listApprovalDecisionsService` — Scoped read with reviewer details.
 
 ## Risk Signal Generation
 

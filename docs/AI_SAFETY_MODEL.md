@@ -4,13 +4,15 @@
 AI-generated outputs (risk memos, policy checks, recommendations) are strictly advisory. They do not constitute a compliance decision.
 
 ## Human Final Decision
-Every material decision — approve, reject, escalate, or request evidence — must be made by a human reviewer with appropriate RBAC permissions. The system enforces this at the API level.
+Every material decision — approve, reject, escalate, or request evidence — must be made by a human reviewer with appropriate RBAC permissions. The system enforces this at the service and API level.
 
 - `ApprovalDecision` is immutable: it has no `updatedAt` and no update helper.
 - `RiskMemo` is advisory and linked to `AgentRun` (AI output), not to `ApprovalDecision` (human output).
 - AI never creates `ApprovalDecision` records.
 - AI never changes case status to APPROVED or REJECTED.
 - AI never sets case risk level automatically.
+- The decision service does not import or call any AI provider.
+- A human reviewer can make a final decision that contradicts the AI's `recommendedAction` (e.g., CLOSE_NO_ACTION when AI recommends HIGH_RISK_ESCALATION).
 
 ## Separation of AI and Human Outputs
 - **AgentRun**: Stores the raw AI invocation (provider, model, prompt version, input hash, output JSON, token usage, status, error). This is the system record of what the AI produced. Prompt content is not stored; only an input hash is kept for reproducibility.

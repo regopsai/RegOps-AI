@@ -26,6 +26,8 @@ const TERMINAL_STATUSES: CaseStatus[] = ["APPROVED", "REJECTED", "CLOSED"];
 const makeFinalDecisionSchema = z.object({
   decision: z.enum(["APPROVE", "REJECT", "ESCALATE", "REQUEST_MORE_INFORMATION", "CLOSE_NO_ACTION"]),
   reason: z.string().min(1, "Reason is required").max(10000, "Reason must be 10,000 characters or less"),
+  createCaseNote: z.boolean().optional(),
+  reviewerComment: z.string().max(5000).optional(),
 });
 
 function decisionToStatus(decision: ApprovalDecisionType): CaseStatus {
@@ -46,6 +48,7 @@ function decisionToStatus(decision: ApprovalDecisionType): CaseStatus {
 }
 
 interface EvidenceSnapshot {
+  snapshotVersion: string;
   case: {
     id: string;
     title: string;
@@ -94,12 +97,12 @@ interface EvidenceSnapshot {
   };
   notes: {
     count: number;
-    noteIds: string[];
+    latestNoteIds: string[];
+    latestNoteCreatedAt: string | null;
   };
   decisionMetadata: {
     reviewerUserId: string;
     decision: string;
-    reasonLength: number;
     timestamp: string;
   };
 }
@@ -107,7 +110,6 @@ interface EvidenceSnapshot {
 function buildEvidenceSnapshot(
   caseData: Awaited<ReturnType<typeof getCaseWorkspaceForOrganization>> & { riskMemos?: { id: string; acceptedAt: Date | null }[] },
   decision: ApprovalDecisionType,
-  reason: string,
   reviewerUserId: string
 ): EvidenceSnapshot {
   if (!caseData) {
@@ -132,7 +134,11 @@ function buildEvidenceSnapshot(
         }
       : null;
 
+  const notes = caseData.notes ?? [];
+  const latestNote = notes[0] ?? null;
+
   return {
+    snapshotVersion: "1.0",
     case: {
       id: caseData.id,
       title: caseData.title,
@@ -151,7 +157,7 @@ function buildEvidenceSnapshot(
     })),
     transactions: {
       count: caseData.transactions?.length ?? 0,
-      latest: (caseData.transactions ?? []).map((t) => ({
+      latest: (caseData.transactions ?? []).slice(0, 20).map((t) => ({
         id: t.id,
         externalReference: t.externalReference,
         direction: t.direction,
@@ -174,13 +180,13 @@ function buildEvidenceSnapshot(
       latestAcceptedAt: caseData.riskMemos?.[0]?.acceptedAt?.toISOString() ?? null,
     },
     notes: {
-      count: caseData.notes?.length ?? 0,
-      noteIds: (caseData.notes ?? []).map((n) => n.id),
+      count: notes.length,
+      latestNoteIds: notes.slice(0, 5).map((n) => n.id),
+      latestNoteCreatedAt: latestNote?.createdAt?.toISOString() ?? null,
     },
     decisionMetadata: {
       reviewerUserId,
       decision,
-      reasonLength: reason.length,
       timestamp: new Date().toISOString(),
     },
   };
@@ -190,6 +196,8 @@ export interface MakeFinalDecisionInput {
   caseId: string;
   decision: ApprovalDecisionType;
   reason: string;
+  createCaseNote?: boolean;
+  reviewerComment?: string;
 }
 
 export async function makeFinalDecisionService(
@@ -203,7 +211,7 @@ export async function makeFinalDecisionService(
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid input");
   }
 
-  const { decision, reason } = parsed.data;
+  const { decision, reason, createCaseNote, reviewerComment } = parsed.data;
 
   const caseData = await getCaseWorkspaceForOrganization(ctx.organizationId, input.caseId);
   if (!caseData) {
@@ -214,6 +222,8 @@ export async function makeFinalDecisionService(
     throw new Error(`Cannot make final decision: case is already ${caseData.status}`);
   }
 
+  const previousStatus = caseData.status;
+
   const riskMemos = await prisma.riskMemo.findMany({
     where: { organizationId: ctx.organizationId, complianceCaseId: input.caseId },
     orderBy: { createdAt: "desc" },
@@ -223,7 +233,7 @@ export async function makeFinalDecisionService(
   const caseDataWithMemos = { ...caseData, riskMemos };
 
   const newStatus = decisionToStatus(decision);
-  const evidenceSnapshot = buildEvidenceSnapshot(caseDataWithMemos, decision, reason, ctx.userId);
+  const evidenceSnapshot = buildEvidenceSnapshot(caseDataWithMemos, decision, ctx.userId);
   const evidenceSnapshotJson = JSON.stringify(evidenceSnapshot);
 
   const result = await prisma.$transaction(async (tx) => {
@@ -250,23 +260,65 @@ export async function makeFinalDecisionService(
       },
     });
 
+    let createdCaseNoteId: string | undefined;
+
+    if (createCaseNote) {
+      const noteBody = [
+        `## Final Decision: ${decision}`,
+        "",
+        `**Reason:** ${reason}`,
+        reviewerComment ? `"""${reviewerComment}"""` : "",
+      ].join("\n").trim();
+
+      const note = await tx.caseNote.create({
+        data: {
+          organizationId: ctx.organizationId,
+          complianceCaseId: input.caseId,
+          authorUserId: ctx.userId,
+          body: noteBody,
+          visibility: "INTERNAL",
+        },
+      });
+      createdCaseNoteId = note.id;
+
+      await tx.auditEvent.create({
+        data: {
+          organizationId: ctx.organizationId,
+          actorUserId: ctx.userId,
+          action: "CASE_NOTE_CREATED",
+          entityType: "CaseNote",
+          entityId: note.id,
+          metadataJson: JSON.stringify({
+            complianceCaseId: input.caseId,
+            visibility: "INTERNAL",
+            source: "FINAL_DECISION",
+          }),
+        },
+      });
+    }
+
     await tx.auditEvent.create({
       data: {
         organizationId: ctx.organizationId,
         actorUserId: ctx.userId,
-        action: "CASE_FINAL_DECISION",
+        action: "APPROVAL_DECISION_CREATED",
         entityType: "ComplianceCase",
         entityId: input.caseId,
         metadataJson: JSON.stringify({
+          complianceCaseId: input.caseId,
           decision,
+          previousStatus,
           newStatus,
+          reviewerUserId: ctx.userId,
+          evidenceSnapshotVersion: evidenceSnapshot.snapshotVersion,
           approvalDecisionId: approvalDecision.id,
-          reasonLength: reason.length,
+          createdCaseNoteId: createdCaseNoteId ?? null,
+          latestRiskMemoId: evidenceSnapshot.riskMemos.latestId,
         }),
       },
     });
 
-    return approvalDecision;
+    return { approvalDecision, createdCaseNoteId };
   });
 
   return result;

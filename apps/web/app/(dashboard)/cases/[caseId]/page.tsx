@@ -563,6 +563,16 @@ export default async function CaseDetailPage({
                   placeholder="Reason for decision..."
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 />
+                <textarea
+                  name="reviewerComment"
+                  rows={2}
+                  placeholder="Optional reviewer comment (max 5000 chars)..."
+                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                />
+                <label className="flex items-center gap-2 text-xs text-slate-700">
+                  <input type="checkbox" name="createCaseNote" value="true" />
+                  Add decision summary as internal case note
+                </label>
                 <button
                   type="submit"
                   className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"

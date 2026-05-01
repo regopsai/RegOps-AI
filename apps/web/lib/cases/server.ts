@@ -117,10 +117,14 @@ export async function makeFinalDecision(caseId: string, formData: FormData) {
   const ctx = toContext(await requirePermission("cases:final_decision"));
   const decision = formData.get("decision") as string;
   const reason = formData.get("reason") as string;
-  await makeFinalDecisionService(ctx, { caseId, decision, reason } as {
-    caseId: string;
-    decision: "APPROVE" | "REJECT" | "ESCALATE" | "REQUEST_MORE_INFORMATION" | "CLOSE_NO_ACTION";
-    reason: string;
+  const createCaseNote = formData.get("createCaseNote") === "true";
+  const reviewerComment = formData.get("reviewerComment") as string | null;
+  await makeFinalDecisionService(ctx, {
+    caseId,
+    decision: decision as "APPROVE" | "REJECT" | "ESCALATE" | "REQUEST_MORE_INFORMATION" | "CLOSE_NO_ACTION",
+    reason,
+    createCaseNote,
+    reviewerComment: reviewerComment ?? undefined,
   });
   revalidatePath(`/cases/${caseId}`);
   revalidatePath("/cases");
