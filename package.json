@@ -17,12 +17,18 @@
     "db:migrate": "pnpm --filter @regops-ai/database db:migrate",
     "db:seed": "pnpm --filter @regops-ai/database db:seed",
     "db:studio": "pnpm --filter @regops-ai/database db:studio",
-    "db:reset": "pnpm --filter @regops-ai/database db:reset"
+    "db:reset": "pnpm --filter @regops-ai/database db:reset",
+    "db:test:setup": "tsx scripts/setup-test-databases.ts",
+    "db:test:migrate": "pnpm --filter @regops-ai/database db:test:migrate",
+    "db:test:reset": "pnpm --filter @regops-ai/database db:test:reset",
+    "test:setup": "pnpm db:test:setup"
   },
   "devDependencies": {
+    "pg": "^8.20.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.21.0",
     "turbo": "^2.5.2",
-    "typescript": "^5.8.3",
-    "prettier": "^3.5.3"
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=20"

@@ -19,7 +19,11 @@
    pnpm db:migrate
    pnpm db:seed
    ```
-5. Run `pnpm dev` to start the development server.
+5. Setup test databases (required before running tests):
+   ```bash
+   pnpm test:setup
+   ```
+6. Run `pnpm dev` to start the development server.
 
 ## Environment Variables
 
@@ -108,6 +112,26 @@
 - `pnpm db:seed` — Seed demo data
 - `pnpm db:studio` — Open Prisma Studio
 - `pnpm db:reset` — Reset database
+- `pnpm test:setup` — Create test databases and apply migrations
+- `pnpm db:test:reset` — Reset test databases
+
+## Test Database Isolation
+Tests use dedicated databases to ensure deterministic, CI-safe execution:
+
+| Package | Test Database | Env Var |
+|---|---|---|
+| `apps/web` | `regops_ai_web_test` | `WEB_TEST_DATABASE_URL` |
+| `packages/database` | `regops_ai_database_test` | `DATABASE_TEST_DATABASE_URL` |
+
+### Why Isolation Matters
+- Development data (seeded users, cases, transactions) does not interfere with test assertions.
+- Multiple packages can run tests in parallel without table-locking or data collision.
+- Test failures are reproducible because each test suite starts from a known empty state.
+
+### Guardrails
+- The setup script refuses to create databases whose names do not contain `test` or `_test`.
+- The setup script refuses to run against production-looking URLs (e.g., containing `amazonaws.com`, `neon.tech`, `prod`, `live`).
+- `db:test:reset` is configured to only operate on test databases.
 
 ## Auth Notes
 - Auth.js v5 uses JWT sessions with the Credentials provider.

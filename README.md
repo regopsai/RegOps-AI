@@ -129,6 +129,18 @@ pnpm typecheck
 pnpm test
 ```
 
+### Test Database Isolation
+Tests run against isolated databases to avoid conflicts with development data:
+- **Web tests**: `regops_ai_web_test`
+- **Database package tests**: `regops_ai_database_test`
+
+Setup test databases once:
+```bash
+pnpm test:setup
+```
+
+This creates the test databases (if missing) and applies Prisma migrations. You can rerun it safely at any time.
+
 ### Test Coverage
 
 - **RBAC**: Permission matrix validation for all 5 roles.

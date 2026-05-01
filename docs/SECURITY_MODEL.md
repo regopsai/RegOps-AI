@@ -134,3 +134,8 @@ All significant actions (case creation, update, assignment, status change, note 
 - PII and sensitive documents are encrypted at rest.
 - Credentials and API keys are stored in environment variables, never in source code.
 - Least-privilege database access.
+
+## Test Infrastructure Safety
+- Tests run against isolated databases (`regops_ai_web_test`, `regops_ai_database_test`), never the development or production database.
+- Test setup scripts guard against production URLs and refuse to create databases without `test` in the name.
+- No secrets are printed during test database setup.
