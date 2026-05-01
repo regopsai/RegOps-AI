@@ -154,6 +154,63 @@ Returns full profile with related cases, transactions, documents, and risk signa
 | `DOCUMENT_ARCHIVED` | Document archived |
 | `DOCUMENT_EXTRACTION_COMPLETED` | Text extraction succeeded |
 | `DOCUMENT_EXTRACTION_FAILED` | Text extraction failed |
+| `EVIDENCE_EXPORT_GENERATED` | Case evidence export pack generated |
+
+## Evidence Export
+
+### API Routes
+
+#### `GET /api/cases/[caseId]/evidence-export?format=json|pdf`
+**Permission:** `evidence:export`
+
+Generates an auditor-ready evidence export pack for a compliance case.
+
+**Query Parameters:**
+- `format` — Required. `json` or `pdf`.
+
+**Response:**
+- JSON: `Content-Type: application/json`, `Content-Disposition: attachment`
+- PDF: `Content-Type: application/pdf`, `Content-Disposition: attachment`
+
+**Error Responses:**
+- `400` — Invalid format parameter
+- `403` — Missing `evidence:export` permission
+- `404` — Case not found or does not belong to organization
+- `500` — Export rendering failure
+
+**Side effects:** Writes `EVIDENCE_EXPORT_GENERATED` audit event with compact metadata (format, counts). Does NOT write audit on unauthorized requests.
+
+### Service Functions (`lib/exports/evidence-export-service.ts`)
+
+- `buildEvidenceExportService` — Fetches and sanitizes case data into a structured export object. Enforces `evidence:export` permission and organization isolation.
+- `renderEvidenceExportJsonService` — Renders export data as formatted JSON.
+- `renderEvidenceExportPdfService` — Renders export data as a PDF using `pdfkit`.
+- `generateEvidenceExportService` — Orchestrates build + render + audit. Returns buffer, content type, and safe filename.
+- `maskSensitiveValue` — Masks sensitive strings (e.g., counterparty accounts) showing last 4 chars only.
+- `summarizeRiskSignalEvidence` — Summarizes risk signal evidence JSON, truncating long strings.
+- `summarizeAuditMetadata` — Summarizes audit metadata, redacting blocked keys (`storageKey`, `extractedText`, `apiKey`, `prompt`, `rawResponse`, `evidenceSnapshotJson`, `fullContext`).
+
+### Export Content
+
+The evidence pack includes:
+1. **Export metadata** — version, timestamp, user, organization, case ID, format, application name
+2. **Organization summary** — id, name, slug, status
+3. **Case summary** — id, title, description, status, risk level, dates, openedBy, assignedTo
+4. **Subject summary** — customer or business profile fields (type-specific)
+5. **Documents** — metadata only (id, type, status, filename, mimeType, sizeBytes, checksumSha256, createdAt, uploadedByUserId). Excludes `storageKey` and `extractedText`.
+6. **Transactions** — count, totals by currency (inbound/outbound), up to 100 rows with masked `counterpartyAccount`.
+7. **Risk signals** — id, ruleId, title, description, severity, createdAt, summarized evidence.
+8. **Risk memos** — latest memo full content + historical list metadata.
+9. **Final decisions** — all approval decisions with decision, reason, reviewer, createdAt, evidence snapshot version.
+10. **Case notes** — auditor-visible notes include full body; internal notes include metadata only (no body).
+11. **Audit timeline** — related audit events with summarized metadata.
+
+### Export Exclusions & Redactions
+- `storageKey` is never included
+- `extractedText` is never included
+- `counterpartyAccount` is masked (last 4 chars only)
+- Raw prompts, raw AI context, API keys are never included
+- Internal note bodies are excluded from PDF and JSON metadata
 
 ## Data Validation
 
@@ -349,3 +406,8 @@ AI output is validated against `riskMemoAIOutputSchema`:
 | `/settings/members` | Member management | `members:read` |
 | `/login` | Sign in | — |
 | `/no-organization` | No org fallback | — |
+
+### Evidence Export Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Export JSON/PDF | `evidence:export` | OWNER, ADMIN, COMPLIANCE_MANAGER, READ_ONLY_AUDITOR |

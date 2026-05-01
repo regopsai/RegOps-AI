@@ -99,6 +99,21 @@ All significant actions (case creation, update, assignment, status change, note 
 | Make final decision | `cases:final_decision` | OWNER, ADMIN, COMPLIANCE_MANAGER |
 | View decision history | `cases:read` | All roles |
 
+### Evidence Export Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Export case evidence (JSON/PDF) | `evidence:export` | OWNER, ADMIN, COMPLIANCE_MANAGER, READ_ONLY_AUDITOR |
+
+### Evidence Export Safety
+- Exports are strictly advisory and must be reviewed by human compliance staff.
+- Exports never include raw storage keys, extracted text, API keys, raw AI prompts, or raw context.
+- `counterpartyAccount` values are masked (last 4 characters only).
+- Internal note bodies are excluded from exports; only auditor-visible note bodies are included.
+- Audit metadata in exports is summarized and redacts sensitive keys.
+- Each successful export writes an `EVIDENCE_EXPORT_GENERATED` audit event.
+- Unauthorized export attempts do not write success audit events.
+- Cross-organization export attempts return 404 and do not leak case existence.
+
 ### AI Risk Memo Permissions
 | Action | Required Permission | Who Can |
 |---|---|---|
@@ -139,3 +154,8 @@ All significant actions (case creation, update, assignment, status change, note 
 - Tests run against isolated databases (`regops_ai_web_test`, `regops_ai_database_test`), never the development or production database.
 - Test setup scripts guard against production URLs and refuse to create databases without `test` in the name.
 - No secrets are printed during test database setup.
+
+## Evidence Export Security
+- PDF generation uses `pdfkit` (server-side Node.js library). No browser-only PDF generation is used.
+- Exported PDFs include a footer stating the export is advisory and must be reviewed by human compliance staff.
+- Export filenames are safe and deterministic: `regops-evidence-case-{caseId}-{YYYYMMDD}.{format}`.

@@ -14,11 +14,12 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 4. **Transaction Import**: CSV import with validation, deduplication (skip/fail modes), batch tracking, and linking to customers/businesses/cases.
 5. **Deterministic AML Risk Signals**: Rule-based risk detection (high-value, structuring, high-risk country, rapid flow, many counterparties, missing profile data, missing documents). Idempotent generation with evidence hashing.
 6. **AI Risk Memo Generation**: Structured advisory risk memos generated from case evidence (profile, documents, transactions, risk signals, notes). Includes executive summary, document/transaction review, risk signal synthesis, missing information checklist, recommended action, evidence references, and limitations. Human acceptance workflow with optional case note creation. AI is strictly advisory.
-4. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
-5. **Audit Trail**: Immutable event log for every case action and decision.
-6. **Evidence Management**: Attach and export documents and evidence tied to cases.
-7. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
-8. **RBAC**: Role-based access control with 5 roles and 23 permissions.
+7. **Evidence Export**: Auditor-ready evidence export packs in JSON and PDF formats. Includes sanitized case data, document metadata, transaction summaries with masked account numbers, risk signals, AI memos, final decisions, auditor-visible notes, and audit timeline. Excludes storage keys, extracted text, raw prompts, and internal note bodies.
+8. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
+9. **Audit Trail**: Immutable event log for every case action and decision.
+10. **Evidence Management**: Attach and export documents and evidence tied to cases.
+11. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
+12. **RBAC**: Role-based access control with 5 roles and 23 permissions.
 
 ## Non-Goals (for MVP)
 - Real-time transaction monitoring
@@ -92,3 +93,11 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 | audit_logs:read | ✓ | ✓ | ✓ | — | ✓ |
 | evidence:export | ✓ | ✓ | ✓ | — | ✓ |
 | ai:risk_memo | ✓ | ✓ | ✓ | ✓ | — |
+
+## Evidence Export Limitations
+- Evidence exports are **not legal filings by themselves** and must be reviewed by the human compliance team.
+- Source uploaded documents are **not embedded** in the exported PDF. Only metadata and summaries are included.
+- Raw document text, storage keys, and API keys are never included in exports.
+- Counterparty account numbers are masked (last 4 characters only).
+- Internal case note bodies are excluded from exports.
+- Export content is scoped to a single organization; cross-organization export is not supported.

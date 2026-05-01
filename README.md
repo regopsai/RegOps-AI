@@ -75,7 +75,7 @@ The seed script creates these users (all with the same dev password):
 ### Case Management
 - **Cases list** (`/cases`) — Filter by status, risk level, subject type, assignee; search by title/customer/business name
 - **New case** (`/cases/new`) — Create cases linked to individual customers or businesses
-- **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, AI risk memos, audit timeline; update status, assign, add notes, generate/accept AI risk memos (RBAC-enforced)
+- **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, AI risk memos, audit timeline; update status, assign, add notes, generate/accept AI risk memos (RBAC-enforced); export evidence packs (JSON/PDF)
 
 ### Transaction Import
 - **Transactions** (`/transactions`) — List with filters (direction, currency, country, date range, amount, search) and import button
@@ -92,6 +92,14 @@ Rules implemented:
 - MISSING_PROFILE_DATA: flags incomplete customer/business profiles
 - MISSING_REQUIRED_DOCUMENTS: flags missing ID/proof-of-address/registration docs
 - Idempotent generation with evidenceHash deduplication
+
+### Evidence Export
+- **JSON export** (`/api/cases/[caseId]/evidence-export?format=json`) — Structured sanitized case data for auditors and compliance teams
+- **PDF export** (`/api/cases/[caseId]/evidence-export?format=pdf`) — Readable auditor-facing report
+- Export includes: case summary, subject profile, document metadata, transaction summaries with masked account numbers, risk signals, AI memos, final decisions, auditor-visible notes, and audit timeline
+- Excludes: storage keys, extracted text, raw AI prompts, API keys, internal note bodies
+- RBAC: `evidence:export` permission required (OWNER, ADMIN, COMPLIANCE_MANAGER, READ_ONLY_AUDITOR)
+- Every successful export writes an `EVIDENCE_EXPORT_GENERATED` audit event
 
 ### Customer & Business Profiles
 - **Customers** (`/customers`) — Read-only list with filters and search
@@ -177,6 +185,12 @@ This creates the test databases (if missing) and applies Prisma migrations. You 
   - AgentRun lifecycle, RiskMemo creation, audit events, failure handling, no ApprovalDecision creation, no case status change, RBAC enforcement, cross-org rejection.
 - **Risk memo acceptance integration tests**:
   - Acceptance workflow, case note creation, audit events, no ApprovalDecision creation, no case status change, idempotency, RBAC enforcement, cross-org rejection.
+- **Evidence export integration tests**:
+  - Export builder: customer case, business case, document metadata, transaction masking, risk signal evidence summarization, audit metadata redaction, cross-org rejection, analyst denial.
+  - PDF renderer: non-empty buffer, %PDF header, no storageKey, no raw prompt text.
+  - JSON renderer: valid JSON, no storageKey, no API keys, masked counterpartyAccount.
+  - Audit: success writes `EVIDENCE_EXPORT_GENERATED`, unauthorized attempts write no audit.
+  - API route: 400/403/404 responses, correct content-type and content-disposition.
 - **Final approval decision integration tests**:
   - All 5 decision types with correct status transitions, RBAC enforcement (OWNER/ADMIN/COMPLIANCE_MANAGER allowed; ANALYST/AUDITOR denied), terminal case rejection, cross-org isolation, empty reason rejection.
   - Evidence snapshot safety: no extractedText, storageKey, note bodies, memo text, API keys.
@@ -195,6 +209,7 @@ This creates the test databases (if missing) and applies Prisma migrations. You 
 - Prisma + PostgreSQL
 - Auth.js v5 (NextAuth) + bcryptjs
 - Vitest (testing)
+- pdfkit (server-side PDF generation)
 
 ## License
 

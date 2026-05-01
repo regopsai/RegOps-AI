@@ -30,6 +30,7 @@ export default async function CaseDetailPage({
   const canArchive = hasPermission(context.membership.role, "documents:archive");
   const canGenerateMemo = hasPermission(context.membership.role, "ai:risk_memo");
   const canMakeFinalDecision = hasPermission(context.membership.role, "cases:final_decision");
+  const canExportEvidence = hasPermission(context.membership.role, "evidence:export");
   const mockWarning = getMockProviderWarning();
   const isTerminal = ["APPROVED", "REJECTED", "CLOSED"].includes(caseData.status);
 
@@ -517,6 +518,29 @@ export default async function CaseDetailPage({
               )}
             </div>
           </Card>
+
+          {/* Evidence Export */}
+          {canExportEvidence && (
+            <Card title="Evidence Export">
+              <p className="mb-3 text-xs text-slate-500">
+                Evidence exports include sanitized case data, documents metadata, transactions summary, risk signals, AI memos, final decisions, and audit timeline.
+              </p>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/api/cases/${caseId}/evidence-export?format=json`}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Export JSON
+                </a>
+                <a
+                  href={`/api/cases/${caseId}/evidence-export?format=pdf`}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Export PDF
+                </a>
+              </div>
+            </Card>
+          )}
 
           {/* Final Decision */}
           <Card title="Final Decision">

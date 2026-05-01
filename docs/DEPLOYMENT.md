@@ -138,6 +138,12 @@ Tests use dedicated databases to ensure deterministic, CI-safe execution:
 - Passwords are hashed with bcryptjs.
 - The in-memory rate limiter is for development only. Production should use Redis or a cloud rate limiter.
 
+## Evidence Export
+- Requires `pdfkit` (installed automatically via pnpm)
+- PDF generation is server-side only using `pdfkit`
+- No additional runtime dependencies or browser plugins required
+- Exports are generated on-demand via API route and streamed as attachments
+
 ## Future Deployment Target
 - Dockerized container deployment
 - PostgreSQL for primary data
