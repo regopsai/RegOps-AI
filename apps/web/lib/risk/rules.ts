@@ -50,8 +50,16 @@ export interface RiskSignalCandidate {
   complianceCaseId?: string;
 }
 
+function canonicalStringify(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return `[${obj.map(canonicalStringify).join(",")}]`;
+  const keys = Object.keys(obj as Record<string, unknown>).sort();
+  const pairs = keys.map((k) => `"${k}":${canonicalStringify((obj as Record<string, unknown>)[k])}`);
+  return `{${pairs.join(",")}}`;
+}
+
 function hashEvidence(data: unknown): string {
-  return createHash("sha256").update(JSON.stringify(data)).digest("hex").slice(0, 32);
+  return createHash("sha256").update(canonicalStringify(data)).digest("hex").slice(0, 32);
 }
 
 function thresholdForCurrency(currency: string): number {
@@ -87,6 +95,10 @@ export function evaluateHighValueTransaction(tx: RuleTransaction): RiskSignalCan
   };
 }
 
+function getProfileKey(tx: RuleTransaction): string {
+  return tx.customerProfileId ?? tx.businessProfileId ?? "unlinked";
+}
+
 // Rule 2: STRUCTURING_PATTERN
 export function evaluateStructuringPattern(transactions: RuleTransaction[]): RiskSignalCandidate | null {
   const windowDays = 7;
@@ -94,50 +106,60 @@ export function evaluateStructuringPattern(transactions: RuleTransaction[]): Ris
   const minAmount = 8000;
   const maxAmount = 9999.99;
 
-  // Sort by occurredAt
-  const sorted = [...transactions].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+  // Group by linked profile so patterns are per-target
+  const byProfile = new Map<string, RuleTransaction[]>();
+  for (const t of transactions) {
+    const key = getProfileKey(t);
+    const group = byProfile.get(key) ?? [];
+    group.push(t);
+    byProfile.set(key, group);
+  }
 
-  for (let i = 0; i < sorted.length; i++) {
-    const windowEnd = new Date(sorted[i].occurredAt);
-    windowEnd.setDate(windowEnd.getDate() + windowDays);
+  for (const group of byProfile.values()) {
+    const sorted = [...group].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 
-    const windowTxs = sorted.filter(
-      (t) => t.occurredAt >= sorted[i].occurredAt && t.occurredAt <= windowEnd
-    );
+    for (let i = 0; i < sorted.length; i++) {
+      const windowEnd = new Date(sorted[i].occurredAt);
+      windowEnd.setDate(windowEnd.getDate() + windowDays);
 
-    const qualifying = windowTxs.filter((t) => {
-      const amt = parseFloat(t.amount.toString());
-      return amt >= minAmount && amt <= maxAmount;
-    });
+      const windowTxs = sorted.filter(
+        (t) => t.occurredAt >= sorted[i].occurredAt && t.occurredAt <= windowEnd
+      );
 
-    if (qualifying.length >= minTransactions) {
-      const evidence = {
-        transactionCount: qualifying.length,
-        windowDays,
-        minAmount,
-        maxAmount,
-        transactionIds: qualifying.map((t) => t.id),
-        externalReferences: qualifying.map((t) => t.externalReference),
-        amounts: qualifying.map((t) => t.amount.toString()),
-        windowStart: sorted[i].occurredAt.toISOString(),
-        windowEnd: windowEnd.toISOString(),
-      };
+      const qualifying = windowTxs.filter((t) => {
+        const amt = parseFloat(t.amount.toString());
+        return amt >= minAmount && amt <= maxAmount;
+      });
 
-      const customerProfileId = qualifying[0].customerProfileId ?? undefined;
-      const businessProfileId = qualifying[0].businessProfileId ?? undefined;
-      const complianceCaseId = qualifying[0].complianceCaseId ?? undefined;
+      if (qualifying.length >= minTransactions) {
+        const evidence = {
+          transactionCount: qualifying.length,
+          windowDays,
+          minAmount,
+          maxAmount,
+          transactionIds: qualifying.map((t) => t.id),
+          externalReferences: qualifying.map((t) => t.externalReference),
+          amounts: qualifying.map((t) => t.amount.toString()),
+          windowStart: sorted[i].occurredAt.toISOString(),
+          windowEnd: windowEnd.toISOString(),
+        };
 
-      return {
-        ruleId: "STRUCTURING_PATTERN",
-        title: "Potential structuring pattern",
-        description: `${qualifying.length} transactions between ${minAmount} and ${maxAmount} within ${windowDays} days.`,
-        severity: "CRITICAL",
-        evidenceJson: JSON.stringify(evidence),
-        evidenceHash: hashEvidence(evidence),
-        customerProfileId,
-        businessProfileId,
-        complianceCaseId,
-      };
+        const customerProfileId = qualifying[0].customerProfileId ?? undefined;
+        const businessProfileId = qualifying[0].businessProfileId ?? undefined;
+        const complianceCaseId = qualifying[0].complianceCaseId ?? undefined;
+
+        return {
+          ruleId: "STRUCTURING_PATTERN",
+          title: "Potential structuring pattern",
+          description: `${qualifying.length} transactions between ${minAmount} and ${maxAmount} within ${windowDays} days.`,
+          severity: "CRITICAL",
+          evidenceJson: JSON.stringify(evidence),
+          evidenceHash: hashEvidence(evidence),
+          customerProfileId,
+          businessProfileId,
+          complianceCaseId,
+        };
+      }
     }
   }
 
@@ -176,46 +198,57 @@ export function evaluateRapidInOutFlow(transactions: RuleTransaction[]): RiskSig
   const tolerance = 0.1; // 10%
   const hoursWindow = 24;
 
-  const inbounds = transactions.filter((t) => t.direction === "INBOUND");
-  const outbounds = transactions.filter((t) => t.direction === "OUTBOUND");
+  // Group by linked profile so flows are per-target
+  const byProfile = new Map<string, RuleTransaction[]>();
+  for (const t of transactions) {
+    const key = getProfileKey(t);
+    const group = byProfile.get(key) ?? [];
+    group.push(t);
+    byProfile.set(key, group);
+  }
 
-  for (const inbound of inbounds) {
-    for (const outbound of outbounds) {
-      const timeDeltaHours =
-        Math.abs(outbound.occurredAt.getTime() - inbound.occurredAt.getTime()) / (1000 * 60 * 60);
-      if (timeDeltaHours > hoursWindow) continue;
+  for (const group of byProfile.values()) {
+    const inbounds = group.filter((t) => t.direction === "INBOUND");
+    const outbounds = group.filter((t) => t.direction === "OUTBOUND");
 
-      const inAmt = parseFloat(inbound.amount.toString());
-      const outAmt = parseFloat(outbound.amount.toString());
-      if (inAmt === 0) continue;
+    for (const inbound of inbounds) {
+      for (const outbound of outbounds) {
+        const timeDeltaHours =
+          Math.abs(outbound.occurredAt.getTime() - inbound.occurredAt.getTime()) / (1000 * 60 * 60);
+        if (timeDeltaHours > hoursWindow) continue;
 
-      const amountDelta = Math.abs(outAmt - inAmt) / inAmt;
-      if (amountDelta > tolerance) continue;
+        const inAmt = parseFloat(inbound.amount.toString());
+        const outAmt = parseFloat(outbound.amount.toString());
+        if (inAmt === 0) continue;
 
-      const evidence = {
-        inboundTransactionId: inbound.id,
-        outboundTransactionId: outbound.id,
-        inboundAmount: inbound.amount.toString(),
-        outboundAmount: outbound.amount.toString(),
-        currency: inbound.currency,
-        timeDeltaHours: Math.round(timeDeltaHours * 100) / 100,
-      };
+        const amountDelta = Math.abs(outAmt - inAmt) / inAmt;
+        if (amountDelta > tolerance) continue;
 
-      const threshold = thresholdForCurrency(inbound.currency);
-      const severity = inAmt >= threshold ? "HIGH" : "MEDIUM";
+        const evidence = {
+          inboundTransactionId: inbound.id,
+          outboundTransactionId: outbound.id,
+          inboundAmount: inbound.amount.toString(),
+          outboundAmount: outbound.amount.toString(),
+          currency: inbound.currency,
+          timeDeltaHours: Math.round(timeDeltaHours * 100) / 100,
+        };
 
-      return {
-        ruleId: "RAPID_IN_OUT_FLOW",
-        title: "Rapid inbound/outbound flow",
-        description: `Inbound ${inbound.amount.toString()} and outbound ${outbound.amount.toString()} ${inbound.currency} within ${Math.round(timeDeltaHours)} hours.`,
-        severity,
-        evidenceJson: JSON.stringify(evidence),
-        evidenceHash: hashEvidence(evidence),
-        transactionId: outbound.id,
-        customerProfileId: inbound.customerProfileId ?? outbound.customerProfileId ?? undefined,
-        businessProfileId: inbound.businessProfileId ?? outbound.businessProfileId ?? undefined,
-        complianceCaseId: inbound.complianceCaseId ?? outbound.complianceCaseId ?? undefined,
-      };
+        const threshold = thresholdForCurrency(inbound.currency);
+        const severity = inAmt >= threshold ? "HIGH" : "MEDIUM";
+
+        return {
+          ruleId: "RAPID_IN_OUT_FLOW",
+          title: "Rapid inbound/outbound flow",
+          description: `Inbound ${inbound.amount.toString()} and outbound ${outbound.amount.toString()} ${inbound.currency} within ${Math.round(timeDeltaHours)} hours.`,
+          severity,
+          evidenceJson: JSON.stringify(evidence),
+          evidenceHash: hashEvidence(evidence),
+          transactionId: outbound.id,
+          customerProfileId: inbound.customerProfileId ?? outbound.customerProfileId ?? undefined,
+          businessProfileId: inbound.businessProfileId ?? outbound.businessProfileId ?? undefined,
+          complianceCaseId: inbound.complianceCaseId ?? outbound.complianceCaseId ?? undefined,
+        };
+      }
     }
   }
 

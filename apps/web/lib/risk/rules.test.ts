@@ -31,6 +31,19 @@ function tx(overrides: Partial<RuleTransaction> = {}): RuleTransaction {
   };
 }
 
+import { createHash } from "crypto";
+
+function computeEvidenceHash(data: unknown): string {
+  const canonicalStringify = (obj: unknown): string => {
+    if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+    if (Array.isArray(obj)) return `[${obj.map(canonicalStringify).join(",")}]`;
+    const keys = Object.keys(obj as Record<string, unknown>).sort();
+    const pairs = keys.map((k) => `"${k}":${canonicalStringify((obj as Record<string, unknown>)[k])}`);
+    return `{${pairs.join(",")}}`;
+  };
+  return createHash("sha256").update(canonicalStringify(data)).digest("hex").slice(0, 32);
+}
+
 describe("risk rules", () => {
   describe("HIGH_VALUE_TRANSACTION", () => {
     it("triggers for amount >= 10000 USD", () => {
@@ -72,6 +85,16 @@ describe("risk rules", () => {
         tx({ id: "tx-1", amount: { toString: () => "5000.00", lessThan: (n: number) => 5000 < n }, occurredAt: new Date("2024-01-01T10:00:00Z") }),
         tx({ id: "tx-2", amount: { toString: () => "6000.00", lessThan: (n: number) => 6000 < n }, occurredAt: new Date("2024-01-02T10:00:00Z") }),
         tx({ id: "tx-3", amount: { toString: () => "7000.00", lessThan: (n: number) => 7000 < n }, occurredAt: new Date("2024-01-03T10:00:00Z") }),
+      ];
+      const signal = evaluateStructuringPattern(transactions);
+      expect(signal).toBeNull();
+    });
+
+    it("does not trigger when qualifying transactions belong to different profiles", () => {
+      const transactions = [
+        tx({ id: "tx-1", customerProfileId: "cust-1", amount: { toString: () => "8500.00", lessThan: (n: number) => 8500 < n }, occurredAt: new Date("2024-01-01T10:00:00Z") }),
+        tx({ id: "tx-2", customerProfileId: "cust-1", amount: { toString: () => "9000.00", lessThan: (n: number) => 9000 < n }, occurredAt: new Date("2024-01-02T10:00:00Z") }),
+        tx({ id: "tx-3", customerProfileId: "cust-2", amount: { toString: () => "9500.00", lessThan: (n: number) => 9500 < n }, occurredAt: new Date("2024-01-03T10:00:00Z") }),
       ];
       const signal = evaluateStructuringPattern(transactions);
       expect(signal).toBeNull();
@@ -125,6 +148,15 @@ describe("risk rules", () => {
       const transactions = [
         tx({ id: "tx-in", direction: "INBOUND", amount: { toString: () => "10000.00", lessThan: (n: number) => 10000 < n }, occurredAt: new Date("2024-01-01T10:00:00Z") }),
         tx({ id: "tx-out", direction: "OUTBOUND", amount: { toString: () => "10100.00", lessThan: (n: number) => 10100 < n }, occurredAt: new Date("2024-01-03T10:00:00Z") }),
+      ];
+      const signal = evaluateRapidInOutFlow(transactions);
+      expect(signal).toBeNull();
+    });
+
+    it("does not trigger when inbound and outbound belong to different profiles", () => {
+      const transactions = [
+        tx({ id: "tx-in", direction: "INBOUND", customerProfileId: "cust-1", amount: { toString: () => "10000.00", lessThan: (n: number) => 10000 < n }, occurredAt: new Date("2024-01-01T10:00:00Z") }),
+        tx({ id: "tx-out", direction: "OUTBOUND", customerProfileId: "cust-2", amount: { toString: () => "10100.00", lessThan: (n: number) => 10100 < n }, occurredAt: new Date("2024-01-01T20:00:00Z") }),
       ];
       const signal = evaluateRapidInOutFlow(transactions);
       expect(signal).toBeNull();
@@ -189,6 +221,20 @@ describe("risk rules", () => {
       expect(signal).not.toBeNull();
       const evidence = JSON.parse(signal?.evidenceJson ?? "{}");
       expect(evidence.missingFields).toContain("registrationNumber");
+    });
+  });
+
+  describe("evidence hash", () => {
+    it("is stable regardless of key insertion order", () => {
+      const dataA = { amount: "15000", currency: "USD", threshold: 10000 };
+      const dataB = { threshold: 10000, amount: "15000", currency: "USD" };
+      expect(computeEvidenceHash(dataA)).toBe(computeEvidenceHash(dataB));
+    });
+
+    it("is stable for nested objects", () => {
+      const dataA = { outer: { b: 2, a: 1 }, list: [3, 2, 1] };
+      const dataB = { outer: { a: 1, b: 2 }, list: [3, 2, 1] };
+      expect(computeEvidenceHash(dataA)).toBe(computeEvidenceHash(dataB));
     });
   });
 

@@ -8,6 +8,7 @@ export interface ParsedCsvRow {
 export interface CsvParseResult {
   rows: ParsedCsvRow[];
   headers: string[];
+  ignoredColumns: string[];
   errors: string[];
 }
 
@@ -47,20 +48,17 @@ export function parseTransactionCsv(buffer: Buffer): CsvParseResult {
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return { rows: [], headers: [], errors: [`CSV parse error: ${message}`] };
+    return { rows: [], headers: [], ignoredColumns: [], errors: [`CSV parse error: ${message}`] };
   }
 
   if (records.length === 0) {
-    return { rows: [], headers: [], errors: ["CSV file is empty or has no data rows"] };
+    return { rows: [], headers: [], ignoredColumns: [], errors: ["CSV file is empty or has no data rows"] };
   }
 
   const headers = Object.keys(records[0]).map((h) => h.trim());
 
-  // Check for unknown columns
-  const unknownColumns = headers.filter((h) => !ALLOWED_COLUMNS.has(h));
-  if (unknownColumns.length > 0) {
-    errors.push(`Unknown columns: ${unknownColumns.join(", ")}`);
-  }
+  // Check for unknown columns — allowed but tracked
+  const ignoredColumns = headers.filter((h) => !ALLOWED_COLUMNS.has(h));
 
   // Check for missing required columns
   const normalizedHeaders = new Set(headers);
@@ -74,5 +72,5 @@ export function parseTransactionCsv(buffer: Buffer): CsvParseResult {
     raw,
   }));
 
-  return { rows, headers, errors };
+  return { rows, headers, ignoredColumns, errors };
 }

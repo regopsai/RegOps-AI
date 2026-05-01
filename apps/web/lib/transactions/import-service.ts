@@ -325,13 +325,13 @@ export async function importTransactionsService(
     });
   }
 
-  const status: TransactionImportMode extends string ? string : never =
+  const status: "COMPLETED" | "COMPLETED_WITH_ERRORS" =
     linkErrors.length > 0 ? "COMPLETED_WITH_ERRORS" : "COMPLETED";
 
   await prisma.transactionImportBatch.update({
     where: { id: batch.id },
     data: {
-      status: status as "COMPLETED" | "COMPLETED_WITH_ERRORS",
+      status,
       totalRows: parseResult.rows.length,
       validRows: validatedRows.length,
       importedRows: transactionsToCreate.length,

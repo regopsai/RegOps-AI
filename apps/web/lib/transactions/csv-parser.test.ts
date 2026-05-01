@@ -27,24 +27,26 @@ describe("parseTransactionCsv", () => {
     expect(result.errors[0]).toContain("Missing required columns");
   });
 
-  it("rejects unknown columns", () => {
+  it("allows unknown columns and tracks them in ignoredColumns", () => {
     const csv = makeCsv([
       "externalReference,direction,amount,currency,counterpartyName,counterpartyAccount,counterpartyCountry,paymentRail,transactionType,description,occurredAt,unknownColumn",
       "TXN-001,INBOUND,100.00,USD,Alice,ACC-1,US,SEPA,TRANSFER,Payment,2024-01-01T00:00:00Z,value",
     ]);
     const result = parseTransactionCsv(csv);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("Unknown columns");
+    expect(result.errors).toHaveLength(0);
+    expect(result.ignoredColumns).toContain("unknownColumn");
+    expect(result.rows).toHaveLength(1);
   });
 
-  it("handles extra columns safely", () => {
+  it("handles extra columns safely with mixed optional and unknown", () => {
     const csv = makeCsv([
       "externalReference,direction,amount,currency,counterpartyName,counterpartyAccount,counterpartyCountry,paymentRail,transactionType,description,occurredAt,customerExternalReference,extraCol",
       "TXN-001,INBOUND,100.00,USD,Alice,ACC-1,US,SEPA,TRANSFER,Payment,2024-01-01T00:00:00Z,CUST-001,ignored",
     ]);
     const result = parseTransactionCsv(csv);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("Unknown columns");
+    expect(result.errors).toHaveLength(0);
+    expect(result.ignoredColumns).toContain("extraCol");
+    expect(result.ignoredColumns).not.toContain("customerExternalReference");
     expect(result.rows).toHaveLength(1);
   });
 
