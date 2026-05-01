@@ -29,6 +29,7 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 - **Organization**: The top-level tenant. All business data is scoped by organization.
 - **User**: Global user identity. Memberships link users to organizations with roles.
 - **OrganizationMember**: Join table with role and status.
+- **PasswordCredential**: Separately stored hashed password for each user.
 
 ### Profiles
 - **CustomerProfile**: Individual customers (KYC).
@@ -51,3 +52,28 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 - **PolicyChunk**: Searchable segments of policies.
 - **AuditEvent**: Append-only log of all significant actions.
 - **AgentRun**: Record of AI invocations (input, output, tokens, status).
+
+## Roles and Permissions
+
+| Permission | OWNER | ADMIN | COMPLIANCE_MANAGER | COMPLIANCE_ANALYST | READ_ONLY_AUDITOR |
+|---|---|---|---|---|---|
+| organization:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| organization:update | ✓ | ✓ | — | — | — |
+| members:read | ✓ | ✓ | ✓ | — | — |
+| members:invite | ✓ | ✓ | ✓ | — | — |
+| members:update_role | ✓ | ✓ | — | — | — |
+| members:disable | ✓ | ✓ | — | — | — |
+| cases:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| cases:create | ✓ | ✓ | ✓ | ✓ | — |
+| cases:update | ✓ | ✓ | ✓ | ✓ | — |
+| cases:assign | ✓ | ✓ | ✓ | — | — |
+| cases:final_decision | ✓ | ✓ | ✓ | — | — |
+| documents:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| documents:upload | ✓ | ✓ | ✓ | ✓ | — |
+| transactions:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| transactions:import | ✓ | ✓ | ✓ | ✓ | — |
+| policies:read | ✓ | ✓ | ✓ | ✓ | ✓ |
+| policies:write | ✓ | ✓ | ✓ | — | — |
+| audit_logs:read | ✓ | ✓ | ✓ | — | ✓ |
+| evidence:export | ✓ | ✓ | ✓ | — | ✓ |
+| ai:risk_memo | ✓ | ✓ | ✓ | ✓ | — |

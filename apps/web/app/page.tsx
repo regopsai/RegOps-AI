@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6">
@@ -12,6 +14,14 @@ export default function HomePage() {
           KYB/KYC review, AML casework, policy checks, risk memos, and audit
           trails — with human oversight at every critical decision.
         </p>
+        <div className="mt-8">
+          <Link
+            href="/login"
+            className="inline-flex items-center rounded-md bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            Sign in
+          </Link>
+        </div>
       </div>
     </main>
   );

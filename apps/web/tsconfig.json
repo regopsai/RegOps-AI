@@ -2,6 +2,8 @@
   "extends": "@regops-ai/config/tsconfig/nextjs.json",
   "compilerOptions": {
     "strict": true,
+    "declaration": false,
+    "declarationMap": false,
     "baseUrl": ".",
     "paths": {
       "@/*": [

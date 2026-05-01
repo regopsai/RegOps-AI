@@ -1,4 +1,5 @@
 import { prisma } from "../src/client";
+import bcryptjs from "bcryptjs";
 import {
   OrganizationStatus,
   UserStatus,
@@ -14,7 +15,6 @@ import {
   CaseNoteVisibility,
   ApprovalDecisionType,
   PolicyStatus,
-  AuditEvent,
 } from "@prisma/client";
 
 async function main() {
@@ -84,6 +84,19 @@ async function main() {
         role: u.role,
         status: MembershipStatus.ACTIVE,
         joinedAt: new Date(),
+      },
+    });
+
+    const seedPassword = process.env.REGOPS_SEED_PASSWORD || "RegOpsDev123!";
+    const passwordHash = await bcryptjs.hash(seedPassword, 12);
+
+    await prisma.passwordCredential.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: {
+        userId: user.id,
+        passwordHash,
+        passwordUpdatedAt: new Date(),
       },
     });
   }

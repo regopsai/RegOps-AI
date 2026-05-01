@@ -158,16 +158,18 @@ model Organization {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  name      String?
-  image     String?
-  status    UserStatus @default(ACTIVE)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
   memberships        OrganizationMember[]
+  passwordCredential PasswordCredential?
   uploadedDocuments  Document[]          @relation("UploadedByUser")
   assignedCases      ComplianceCase[]    @relation("AssignedToUser")
   openedCases        ComplianceCase[]    @relation("OpenedByUser")
@@ -180,6 +182,19 @@ model User {
 
   @@index([status])
   @@index([createdAt])
+}
+
+model PasswordCredential {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  passwordHash      String
+  passwordUpdatedAt DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model OrganizationMember {

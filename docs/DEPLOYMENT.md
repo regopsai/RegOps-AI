@@ -21,13 +21,28 @@
    ```
 5. Run `pnpm dev` to start the development server.
 
+## Environment Variables
+
+### Required
+- `DATABASE_URL` — PostgreSQL connection string
+- `AUTH_SECRET` — Random secret for session signing (generate with `openssl rand -base64 32`)
+- `AUTH_TRUST_HOST` — Set to `true` for local development
+
+### Optional
+- `REGOPS_SEED_PASSWORD` — Password for seed demo users. Defaults to `RegOpsDev123!` for local dev. **Never use the default in production.**
+
 ## Database Commands
-- `pnpm db:generate` — Generate Prisma client from schema
-- `pnpm db:validate` — Validate Prisma schema
-- `pnpm db:migrate` — Run Prisma migrations in dev mode
-- `pnpm db:seed` — Seed the database with demo data
+- `pnpm db:generate` — Generate Prisma client
+- `pnpm db:validate` — Validate schema
+- `pnpm db:migrate` — Run migrations
+- `pnpm db:seed` — Seed demo data
 - `pnpm db:studio` — Open Prisma Studio
-- `pnpm db:reset` — Reset database and re-run migrations
+- `pnpm db:reset` — Reset database
+
+## Auth Notes
+- Auth.js v5 uses JWT sessions with the Credentials provider.
+- Passwords are hashed with bcryptjs.
+- The in-memory rate limiter is for development only. Production should use Redis or a cloud rate limiter.
 
 ## Future Deployment Target
 - Dockerized container deployment
