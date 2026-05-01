@@ -1,2 +1,3 @@
-// Prisma client will be exported here once models are defined.
-export {};
+export { prisma } from "./client";
+export * from "@prisma/client";
+export * from "./helpers";

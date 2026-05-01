@@ -9,7 +9,7 @@ RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto pl
 ## Monorepo Structure
 
 - `apps/web` — Next.js App Router application
-- `packages/database` — Prisma database client (schema TBD)
+- `packages/database` — Prisma database client and domain helpers
 - `packages/ai` — AI provider interfaces (implementation TBD)
 - `packages/compliance-core` — Shared compliance domain types
 - `packages/config` — Shared TypeScript and tooling configuration
@@ -20,12 +20,32 @@ RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto pl
 ### Requirements
 - Node.js >= 20
 - pnpm >= 9
+- Docker (for local PostgreSQL)
 
 ### Install
 
 ```bash
 pnpm install
 ```
+
+### Database
+
+Start local PostgreSQL and set up the schema:
+
+```bash
+docker compose up -d postgres
+pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
+```
+
+Available database commands:
+- `pnpm db:generate` — Generate Prisma client
+- `pnpm db:validate` — Validate schema
+- `pnpm db:migrate` — Run migrations
+- `pnpm db:seed` — Seed demo data
+- `pnpm db:studio` — Open Prisma Studio
+- `pnpm db:reset` — Reset database
 
 ### Development
 
@@ -39,11 +59,12 @@ pnpm dev
 pnpm build
 ```
 
-### Lint and Typecheck
+### Lint, Typecheck, and Test
 
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 ```
 
 ## Tech Stack
@@ -52,7 +73,8 @@ pnpm typecheck
 - Next.js App Router + TypeScript (strict)
 - Tailwind CSS
 - ESLint + Prettier
-- Prisma (prepared, schema pending)
+- Prisma + PostgreSQL
+- Vitest (testing)
 
 ## License
 
