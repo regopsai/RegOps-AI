@@ -10,4 +10,9 @@ export default defineConfig({
     environment: "node",
     include: ["lib/**/*.test.ts"],
   },
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "."),
+    },
+  },
 });

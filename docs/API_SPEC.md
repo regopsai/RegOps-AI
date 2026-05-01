@@ -2,10 +2,11 @@
 
 ## Design Principles
 1. **Server Actions**: Mutations use Next.js Server Actions for simplicity and type safety.
-2. **Tenant-Scoped**: Every query and mutation implicitly scopes data to the authenticated user's active organization.
-3. **RBAC-Enforced**: All server actions verify permissions before executing.
-4. **Audit-Logged**: Every mutation creates an append-only `AuditEvent`.
-5. **Error Handling**: Validation errors throw with descriptive messages. Unauthorized access redirects to `/dashboard`.
+2. **Service Layer**: Business logic is extracted into testable service functions (`lib/cases/case-service.ts`) that accept explicit `ActorContext`. Server actions are thin wrappers.
+3. **Tenant-Scoped**: Every query and mutation implicitly scopes data to the authenticated user's active organization.
+4. **RBAC-Enforced**: All server actions and services verify permissions before executing.
+5. **Audit-Logged**: Every mutation creates an append-only `AuditEvent`.
+6. **Error Handling**: Validation errors throw with descriptive messages. Unauthorized access redirects to `/dashboard`.
 
 ## Authentication
 - Auth.js v5 with JWT sessions and Credentials provider.
@@ -93,6 +94,29 @@ Adds a note to a case.
 **Permission:** `cases:read`
 
 Returns audit events for a specific case (entityType: ComplianceCase or CaseNote), ordered by newest first.
+
+## Service Functions
+
+### `lib/cases/case-service.ts`
+
+All case business logic lives in testable service functions that accept `ActorContext`:
+
+```typescript
+interface ActorContext {
+  userId: string;
+  organizationId: string;
+  role: OrganizationRole;
+}
+```
+
+Service functions include:
+- `listCasesService`, `getCaseService` — reads (require `cases:read`)
+- `createCaseService` — creates case with subject validation, member validation, audit event (require `cases:create`)
+- `updateCaseService` — updates title/description/risk with audit event (require `cases:update`)
+- `assignCaseService` — assigns/unassigns with active-member validation and audit event (require `cases:assign`)
+- `changeCaseStatusService` — status update with restriction to OPEN/IN_REVIEW/ESCALATED/CLOSED and audit event (require `cases:update`)
+- `addCaseNoteService` — note creation with case ownership verification and audit event (require `cases:update`)
+- `getCustomerService`, `getBusinessService` — profile reads
 
 ### Customer & Business Profiles
 

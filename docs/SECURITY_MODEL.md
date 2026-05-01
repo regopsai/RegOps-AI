@@ -46,6 +46,20 @@ All mutations are implemented as Next.js Server Actions with the following enfor
 - **Input validation** — All form inputs are validated with Zod schemas before database writes.
 - **Status restrictions** — Normal UI status updates are restricted to OPEN, IN_REVIEW, ESCALATED, CLOSED. APPROVED and REJECTED are reserved for the final decision workflow (later phase).
 
+## Service Layer Architecture
+Business logic is extracted into testable service functions (`lib/cases/case-service.ts`) that accept an explicit `ActorContext` (`userId`, `organizationId`, `role`). This allows:
+- Unit and integration testing without mocking NextAuth.
+- RBAC enforcement via `hasPermission(role, permission)` inside services.
+- Server actions remain thin wrappers that extract context from the session and delegate to services.
+
+### Assignment Validation
+- `assignedToUserId` is validated against active organization members before case creation or assignment.
+- Cross-organization assignments are rejected.
+
+### Case Note Defense in Depth
+- `createCaseNoteForOrganization` verifies the target case exists in the same organization before creating the note.
+- The server action layer also verifies case ownership before calling the helper.
+
 ## Audit Trail
 All significant actions (case creation, update, assignment, status change, note creation, decision, AI invocation, evidence upload, login, organization switch) are recorded in an append-only audit log. Logs are tamper-evident and scoped by tenant.
 

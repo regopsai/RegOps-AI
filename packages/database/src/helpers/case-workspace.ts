@@ -200,6 +200,19 @@ export interface CreateCaseNoteInput {
 }
 
 export async function createCaseNoteForOrganization(input: CreateCaseNoteInput) {
+  const caseExists = await prisma.complianceCase.findFirst({
+    where: {
+      id: input.complianceCaseId,
+      organizationId: input.organizationId,
+      deletedAt: null,
+    },
+    select: { id: true },
+  });
+
+  if (!caseExists) {
+    throw new Error("Case not found in organization");
+  }
+
   return prisma.caseNote.create({
     data: {
       organizationId: input.organizationId,

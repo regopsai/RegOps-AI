@@ -113,6 +113,18 @@ pnpm typecheck
 pnpm test
 ```
 
+### Test Coverage
+
+- **RBAC**: Permission matrix validation for all 5 roles.
+- **Access control**: Disabled/deleted user authentication rejection, organization membership validation.
+- **Case validation**: Zod schema validation for case creation (subject selection, title length, risk level, description).
+- **Case service integration tests** (real Postgres):
+  - Tenant isolation: org A cannot read/update/assign/note org B cases, customers, or businesses.
+  - RBAC: role-based permission enforcement at service level.
+  - Audit events: every mutation writes a correctly scoped `AuditEvent`.
+  - Status restrictions: APPROVED/REJECTED rejected, OPEN/IN_REVIEW/ESCALATED/CLOSED accepted.
+  - Assignment validation: only active org members can be assigned.
+
 ## Tech Stack
 
 - pnpm workspace + Turborepo
