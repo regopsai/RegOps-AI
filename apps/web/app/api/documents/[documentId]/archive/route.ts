@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: Promise<{ documentId: string }> }
 ) {
   const { documentId } = await params;
-  const context = await requirePermission("documents:upload");
+  const context = await requirePermission("documents:archive");
 
   try {
     await archiveDocumentService(

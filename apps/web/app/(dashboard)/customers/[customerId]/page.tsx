@@ -14,6 +14,7 @@ export default async function CustomerDetailPage({
   const { customerId } = await params;
   const context = await requirePermission("cases:read");
   const canUpload = hasPermission(context.membership.role, "documents:upload");
+  const canArchive = hasPermission(context.membership.role, "documents:archive");
 
   const customer = await prisma.customerProfile.findFirst({
     where: { id: customerId, organizationId: context.organization.id, deletedAt: null },
@@ -117,7 +118,7 @@ export default async function CustomerDetailPage({
             <div className="mt-3">
               <DocumentList
                 documents={customer.documents}
-                canArchive={canUpload}
+                canArchive={canArchive}
               />
             </div>
           </ProfileSection>

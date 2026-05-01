@@ -89,12 +89,15 @@ async function seedTwoOrgs() {
   const businessA = await prisma.businessProfile.create({
     data: { organizationId: orgA.id, legalName: "Business A Ltd", status: ProfileStatus.ACTIVE, riskLevel: RiskLevel.MEDIUM },
   });
+  const businessB = await prisma.businessProfile.create({
+    data: { organizationId: orgB.id, legalName: "Business B Ltd", status: ProfileStatus.ACTIVE, riskLevel: RiskLevel.HIGH },
+  });
 
   const caseA = await prisma.complianceCase.create({
     data: { organizationId: orgA.id, customerProfileId: customerA.id, title: "Case A", status: CaseStatus.OPEN, riskLevel: RiskLevel.LOW, openedByUserId: ownerA.id },
   });
 
-  return { orgA, orgB, ownerA, analystA, auditorA, managerA, ownerB, customerA, customerB, businessA, caseA };
+  return { orgA, orgB, ownerA, analystA, auditorA, managerA, ownerB, customerA, customerB, businessA, businessB, caseA };
 }
 
 function ctx(userId: string, orgId: string, role: OrganizationRole): ActorContext {
@@ -118,7 +121,7 @@ describe("document-service", () => {
   // ─── Upload ───
 
   describe("uploadDocumentService", () => {
-    it("creates document linked to case with audit event", async () => {
+    it("creates document linked to case with correct DOCUMENT_UPLOADED audit fields", async () => {
       const { orgA, ownerA, caseA } = await seedTwoOrgs();
       const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
         fileName: "report.pdf",
@@ -138,6 +141,134 @@ describe("document-service", () => {
       });
       expect(events).toHaveLength(1);
       expect(events[0].actorUserId).toBe(ownerA.id);
+      expect(events[0].entityType).toBe("Document");
+      expect(events[0].entityId).toBe(doc.id);
+
+      const metadata = JSON.parse(events[0].metadataJson ?? "{}");
+      expect(metadata.documentType).toBe("BANK_STATEMENT");
+      expect(metadata.originalFileName).toBe("report.pdf");
+      expect(metadata.mimeType).toBe("application/pdf");
+      expect(metadata.sizeBytes).toBeGreaterThan(0);
+      expect(metadata.complianceCaseId).toBe(caseA.id);
+      expect(metadata.storageKey).toBeUndefined();
+      expect(metadata.extractedText).toBeUndefined();
+    });
+
+    it("TXT upload extracts text and creates DOCUMENT_EXTRACTION_COMPLETED", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const content = "hello extraction test";
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "notes.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from(content),
+        type: "OTHER",
+        customerProfileId: customerA.id,
+      });
+
+      const updated = await getDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      expect(updated?.status).toBe("EXTRACTED");
+      expect(updated?.extractedText).toBe(content);
+
+      const events = await prisma.auditEvent.findMany({
+        where: { organizationId: orgA.id, entityId: doc.id, action: "DOCUMENT_EXTRACTION_COMPLETED" },
+      });
+      expect(events).toHaveLength(1);
+      const metadata = JSON.parse(events[0].metadataJson ?? "{}");
+      expect(metadata.source).toBe("utf-8-text");
+    });
+
+    it("CSV upload extracts text and creates DOCUMENT_EXTRACTION_COMPLETED", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const content = "col1,col2\nval1,val2";
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "data.csv",
+        mimeType: "text/csv",
+        fileBuffer: Buffer.from(content),
+        type: "TRANSACTION_CSV",
+        customerProfileId: customerA.id,
+      });
+
+      const updated = await getDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      expect(updated?.status).toBe("EXTRACTED");
+      expect(updated?.extractedText).toBe(content);
+
+      const events = await prisma.auditEvent.findMany({
+        where: { organizationId: orgA.id, entityId: doc.id, action: "DOCUMENT_EXTRACTION_COMPLETED" },
+      });
+      expect(events).toHaveLength(1);
+    });
+
+    it("PNG upload accepted with status UPLOADED and no extraction audit", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "image.png",
+        mimeType: "image/png",
+        fileBuffer: pngBuffer,
+        type: "ID_DOCUMENT",
+        customerProfileId: customerA.id,
+      });
+
+      expect(doc.status).toBe("UPLOADED");
+
+      const updated = await getDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      expect(updated?.status).toBe("UPLOADED");
+      const meta = updated?.extractionMetadataJson ? JSON.parse(updated.extractionMetadataJson) : null;
+      expect(meta?.reason).toBe("OCR not implemented in this phase");
+
+      const extractionEvents = await prisma.auditEvent.findMany({
+        where: { organizationId: orgA.id, entityId: doc.id, action: { in: ["DOCUMENT_EXTRACTION_COMPLETED", "DOCUMENT_EXTRACTION_FAILED"] } },
+      });
+      expect(extractionEvents).toHaveLength(0);
+    });
+
+    it("JPEG upload accepted with status UPLOADED and no extraction audit", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "image.jpg",
+        mimeType: "image/jpeg",
+        fileBuffer: jpegBuffer,
+        type: "ID_DOCUMENT",
+        customerProfileId: customerA.id,
+      });
+
+      expect(doc.status).toBe("UPLOADED");
+      const updated = await getDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      const meta = updated?.extractionMetadataJson ? JSON.parse(updated.extractionMetadataJson) : null;
+      expect(meta?.reason).toBe("OCR not implemented in this phase");
+
+      const extractionEvents = await prisma.auditEvent.findMany({
+        where: { organizationId: orgA.id, entityId: doc.id, action: { in: ["DOCUMENT_EXTRACTION_COMPLETED", "DOCUMENT_EXTRACTION_FAILED"] } },
+      });
+      expect(extractionEvents).toHaveLength(0);
+    });
+
+    it("rejects invalid PDF magic bytes", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      await expect(
+        uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+          fileName: "fake.pdf",
+          mimeType: "application/pdf",
+          fileBuffer: Buffer.from("not a real pdf"),
+          type: "OTHER",
+          customerProfileId: customerA.id,
+        })
+      ).rejects.toThrow("File content does not match declared format");
+    });
+
+    it("valid upload with extraction failure keeps stored file", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "notes.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("safe content"),
+        type: "OTHER",
+        customerProfileId: customerA.id,
+      });
+
+      const download = await getDocumentDownloadService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      expect(download.buffer.toString()).toBe("safe content");
     });
 
     it("rejects upload linked to org B case", async () => {
@@ -154,6 +285,32 @@ describe("document-service", () => {
           complianceCaseId: caseB.id,
         })
       ).rejects.toThrow("Case not found in organization");
+    });
+
+    it("rejects upload linked to org B customer", async () => {
+      const { orgA, ownerA, customerB } = await seedTwoOrgs();
+      await expect(
+        uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+          fileName: "test.txt",
+          mimeType: "text/plain",
+          fileBuffer: Buffer.from("hello"),
+          type: "OTHER",
+          customerProfileId: customerB.id,
+        })
+      ).rejects.toThrow("Customer not found in organization");
+    });
+
+    it("rejects upload linked to org B business", async () => {
+      const { orgA, ownerA, businessB } = await seedTwoOrgs();
+      await expect(
+        uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+          fileName: "test.txt",
+          mimeType: "text/plain",
+          fileBuffer: Buffer.from("hello"),
+          type: "OTHER",
+          businessProfileId: businessB.id,
+        })
+      ).rejects.toThrow("Business not found in organization");
     });
 
     it("READ_ONLY_AUDITOR cannot upload", async () => {
@@ -252,12 +409,52 @@ describe("document-service", () => {
         getDocumentDownloadService(ctx(ownerA.id, orgA.id, "OWNER"), docB.id)
       ).rejects.toThrow("Document not found");
     });
+
+    it("org A cannot download org B document - no audit created", async () => {
+      const { orgA, orgB, ownerA, ownerB, customerB } = await seedTwoOrgs();
+      const docB = await uploadDocumentService(ctx(ownerB.id, orgB.id, "OWNER"), {
+        fileName: "secret.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("secret"),
+        type: "OTHER",
+        customerProfileId: customerB.id,
+      });
+
+      await expect(
+        getDocumentDownloadService(ctx(ownerA.id, orgA.id, "OWNER"), docB.id)
+      ).rejects.toThrow("Document not found");
+
+      const audits = await prisma.auditEvent.findMany({
+        where: { entityId: docB.id, action: "DOCUMENT_DOWNLOADED" },
+      });
+      expect(audits).toHaveLength(0);
+    });
+
+    it("org A cannot archive org B document - no audit created", async () => {
+      const { orgA, orgB, ownerA, ownerB, customerB } = await seedTwoOrgs();
+      const docB = await uploadDocumentService(ctx(ownerB.id, orgB.id, "OWNER"), {
+        fileName: "secret.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("secret"),
+        type: "OTHER",
+        customerProfileId: customerB.id,
+      });
+
+      await expect(
+        archiveDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), docB.id)
+      ).rejects.toThrow("Document not found");
+
+      const audits = await prisma.auditEvent.findMany({
+        where: { entityId: docB.id, action: "DOCUMENT_ARCHIVED" },
+      });
+      expect(audits).toHaveLength(0);
+    });
   });
 
   // ─── Archive ───
 
   describe("archiveDocumentService", () => {
-    it("archives document and writes audit event", async () => {
+    it("archives document and writes DOCUMENT_ARCHIVED audit", async () => {
       const { orgA, ownerA, customerA } = await seedTwoOrgs();
       const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
         fileName: "old.txt",
@@ -276,9 +473,13 @@ describe("document-service", () => {
         where: { organizationId: orgA.id, entityId: doc.id, action: "DOCUMENT_ARCHIVED" },
       });
       expect(events).toHaveLength(1);
+      expect(events[0].actorUserId).toBe(ownerA.id);
+      expect(events[0].entityType).toBe("Document");
+      const metadata = JSON.parse(events[0].metadataJson ?? "{}");
+      expect(metadata.originalFileName).toBe("old.txt");
     });
 
-    it("auditor cannot archive", async () => {
+    it("auditor cannot archive - no audit created", async () => {
       const { orgA, ownerA, auditorA, customerA } = await seedTwoOrgs();
       const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
         fileName: "old.txt",
@@ -290,7 +491,64 @@ describe("document-service", () => {
 
       await expect(
         archiveDocumentService(ctx(auditorA.id, orgA.id, "READ_ONLY_AUDITOR"), doc.id)
-      ).rejects.toThrow("Forbidden");
+      ).rejects.toThrow("Forbidden: missing permission documents:archive");
+
+      const audits = await prisma.auditEvent.findMany({
+        where: { entityId: doc.id, action: "DOCUMENT_ARCHIVED" },
+      });
+      expect(audits).toHaveLength(0);
+    });
+
+    it("analyst cannot archive - no audit created", async () => {
+      const { orgA, ownerA, analystA, customerA } = await seedTwoOrgs();
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "old.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("old content"),
+        type: "OTHER",
+        customerProfileId: customerA.id,
+      });
+
+      await expect(
+        archiveDocumentService(ctx(analystA.id, orgA.id, "COMPLIANCE_ANALYST"), doc.id)
+      ).rejects.toThrow("Forbidden: missing permission documents:archive");
+
+      const audits = await prisma.auditEvent.findMany({
+        where: { entityId: doc.id, action: "DOCUMENT_ARCHIVED" },
+      });
+      expect(audits).toHaveLength(0);
+    });
+
+    it("manager can archive", async () => {
+      const { orgA, managerA, customerA } = await seedTwoOrgs();
+      const doc = await uploadDocumentService(ctx(managerA.id, orgA.id, "COMPLIANCE_MANAGER"), {
+        fileName: "mgr.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("mgr"),
+        type: "OTHER",
+        customerProfileId: customerA.id,
+      });
+
+      await archiveDocumentService(ctx(managerA.id, orgA.id, "COMPLIANCE_MANAGER"), doc.id);
+
+      const updated = await getDocumentService(ctx(managerA.id, orgA.id, "COMPLIANCE_MANAGER"), doc.id);
+      expect(updated?.status).toBe("ARCHIVED");
+    });
+
+    it("owner/admin can archive", async () => {
+      const { orgA, ownerA, customerA } = await seedTwoOrgs();
+      const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
+        fileName: "admin.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("admin"),
+        type: "OTHER",
+        customerProfileId: customerA.id,
+      });
+
+      await archiveDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+
+      const updated = await getDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), doc.id);
+      expect(updated?.status).toBe("ARCHIVED");
     });
   });
 
@@ -323,7 +581,7 @@ describe("document-service", () => {
   // ─── Download ───
 
   describe("download", () => {
-    it("returns file buffer and metadata", async () => {
+    it("returns file buffer and creates DOCUMENT_DOWNLOADED audit", async () => {
       const { orgA, ownerA, customerA } = await seedTwoOrgs();
       const doc = await uploadDocumentService(ctx(ownerA.id, orgA.id, "OWNER"), {
         fileName: "download.txt",
@@ -341,6 +599,29 @@ describe("document-service", () => {
         where: { organizationId: orgA.id, entityId: doc.id, action: "DOCUMENT_DOWNLOADED" },
       });
       expect(events).toHaveLength(1);
+      expect(events[0].actorUserId).toBe(ownerA.id);
+      const metadata = JSON.parse(events[0].metadataJson ?? "{}");
+      expect(metadata.originalFileName).toBe("download.txt");
+    });
+
+    it("cross-org download rejected - no audit created", async () => {
+      const { orgA, orgB, ownerA, ownerB, customerB } = await seedTwoOrgs();
+      const docB = await uploadDocumentService(ctx(ownerB.id, orgB.id, "OWNER"), {
+        fileName: "secret.txt",
+        mimeType: "text/plain",
+        fileBuffer: Buffer.from("secret"),
+        type: "OTHER",
+        customerProfileId: customerB.id,
+      });
+
+      await expect(
+        getDocumentDownloadService(ctx(ownerA.id, orgA.id, "OWNER"), docB.id)
+      ).rejects.toThrow("Document not found");
+
+      const audits = await prisma.auditEvent.findMany({
+        where: { entityId: docB.id, action: "DOCUMENT_DOWNLOADED" },
+      });
+      expect(audits).toHaveLength(0);
     });
   });
 });

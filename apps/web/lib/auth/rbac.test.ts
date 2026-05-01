@@ -59,6 +59,9 @@ describe("RBAC permission matrix", () => {
     expect(hasPermission("COMPLIANCE_ANALYST", "cases:final_decision")).toBe(
       false
     );
+    expect(hasPermission("COMPLIANCE_ANALYST", "documents:archive")).toBe(
+      false
+    );
   });
 
   it("READ_ONLY_AUDITOR has read-only permissions", () => {
@@ -67,6 +70,7 @@ describe("RBAC permission matrix", () => {
     expect(hasPermission("READ_ONLY_AUDITOR", "evidence:export")).toBe(true);
     expect(hasPermission("READ_ONLY_AUDITOR", "cases:create")).toBe(false);
     expect(hasPermission("READ_ONLY_AUDITOR", "documents:upload")).toBe(false);
+    expect(hasPermission("READ_ONLY_AUDITOR", "documents:archive")).toBe(false);
   });
 
   it("returns false for unknown role", () => {

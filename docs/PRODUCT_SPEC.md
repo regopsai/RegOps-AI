@@ -16,7 +16,7 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 5. **Audit Trail**: Immutable event log for every case action and decision.
 6. **Evidence Management**: Attach and export documents and evidence tied to cases.
 7. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
-8. **RBAC**: Role-based access control with 5 roles and 20 permissions.
+8. **RBAC**: Role-based access control with 5 roles and 21 permissions.
 
 ## Non-Goals (for MVP)
 - Real-time transaction monitoring
@@ -78,6 +78,7 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 | cases:final_decision | ✓ | ✓ | ✓ | — | — |
 | documents:read | ✓ | ✓ | ✓ | ✓ | ✓ |
 | documents:upload | ✓ | ✓ | ✓ | ✓ | — |
+| documents:archive | ✓ | ✓ | ✓ | — | — |
 | transactions:read | ✓ | ✓ | ✓ | ✓ | ✓ |
 | transactions:import | ✓ | ✓ | ✓ | ✓ | — |
 | policies:read | ✓ | ✓ | ✓ | ✓ | ✓ |

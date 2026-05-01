@@ -193,7 +193,7 @@ At least one linked entity is required.
 Returns the file as an attachment download. Writes `DOCUMENT_DOWNLOADED` audit event.
 
 #### `POST /api/documents/[documentId]/archive`
-**Permission:** `documents:upload`
+**Permission:** `documents:archive`
 
 Soft-archives the document (status = ARCHIVED). Writes `DOCUMENT_ARCHIVED` audit event.
 

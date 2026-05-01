@@ -23,6 +23,7 @@ export default async function CaseDetailPage({
   const canUpdate = hasPermission(context.membership.role, "cases:update");
   const canAssign = hasPermission(context.membership.role, "cases:assign");
   const canUpload = hasPermission(context.membership.role, "documents:upload");
+  const canArchive = hasPermission(context.membership.role, "documents:archive");
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: context.organization.id, status: "ACTIVE" },
@@ -205,7 +206,7 @@ export default async function CaseDetailPage({
             <div className="mt-3">
               <DocumentList
                 documents={documents}
-                canArchive={canUpload}
+                canArchive={canArchive}
               />
             </div>
           </Card>

@@ -19,6 +19,7 @@ export type Permission =
   | "cases:final_decision"
   | "documents:read"
   | "documents:upload"
+  | "documents:archive"
   | "transactions:read"
   | "transactions:import"
   | "policies:read"
@@ -41,6 +42,7 @@ export const ALL_PERMISSIONS: Permission[] = [
   "cases:final_decision",
   "documents:read",
   "documents:upload",
+  "documents:archive",
   "transactions:read",
   "transactions:import",
   "policies:read",
@@ -64,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, Permission[]> = {
     "cases:final_decision",
     "documents:read",
     "documents:upload",
+    "documents:archive",
     "transactions:read",
     "transactions:import",
     "policies:read",

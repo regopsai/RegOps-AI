@@ -156,14 +156,16 @@ export async function uploadDocumentService(
       status: extraction.status === "EXTRACTED" ? "EXTRACTED" : extraction.status === "FAILED" ? "FAILED" : "UPLOADED",
     });
 
-    await createAuditEvent({
-      organizationId: ctx.organizationId,
-      actorUserId: ctx.userId,
-      action: extraction.status === "EXTRACTED" ? "DOCUMENT_EXTRACTION_COMPLETED" : "DOCUMENT_EXTRACTION_FAILED",
-      entityType: "Document",
-      entityId: doc.id,
-      metadataJson: extraction.metadataJson,
-    });
+    if (extraction.status === "EXTRACTED" || extraction.status === "FAILED") {
+      await createAuditEvent({
+        organizationId: ctx.organizationId,
+        actorUserId: ctx.userId,
+        action: extraction.status === "EXTRACTED" ? "DOCUMENT_EXTRACTION_COMPLETED" : "DOCUMENT_EXTRACTION_FAILED",
+        entityType: "Document",
+        entityId: doc.id,
+        metadataJson: extraction.metadataJson,
+      });
+    }
   } catch {
     // Extraction failure should not fail the upload
     await updateDocumentExtractionForOrganization(ctx.organizationId, doc.id, {
@@ -176,7 +178,7 @@ export async function uploadDocumentService(
 }
 
 export async function archiveDocumentService(ctx: ActorContext, documentId: string) {
-  assertPermission(ctx, "documents:upload");
+  assertPermission(ctx, "documents:archive");
 
   const doc = await getDocumentForOrganization(ctx.organizationId, documentId);
   if (!doc) {

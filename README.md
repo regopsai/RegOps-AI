@@ -84,7 +84,7 @@ The seed script creates these users (all with the same dev password):
 - **Business detail** (`/businesses/[businessId]`) — Profile summary, related cases, transactions, documents, risk signals
 
 ### Auth & Access Control
-- Role-based access control with 5 roles and 20 permissions
+- Role-based access control with 5 roles and 21 permissions
 - Organization-scoped data isolation
 - Every mutation creates an append-only audit event
 
@@ -129,9 +129,9 @@ pnpm test
 - **Document service integration tests** (real Postgres):
   - Tenant isolation: org A cannot read/download/archive org B documents.
   - Cross-org linking blocked: cannot upload document linked to org B case/customer/business.
-  - RBAC: auditor can read/download but cannot upload/archive; analyst can upload; manager/owner can archive.
+  - RBAC: auditor can read/download but cannot upload/archive; analyst can upload but cannot archive; manager/owner/admin can archive.
   - Audit events: DOCUMENT_UPLOADED, DOCUMENT_DOWNLOADED, DOCUMENT_ARCHIVED, DOCUMENT_EXTRACTION_COMPLETED/FAILED.
-  - Text extraction: PDF text extraction, TXT/CSV extraction, images marked unsupported.
+  - Text extraction: PDF text extraction, TXT/CSV extraction, images marked unsupported (no OCR).
 
 ## Tech Stack
 

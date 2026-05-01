@@ -31,9 +31,9 @@ Permissions are enforced at the API and server-page layer based on the user's `O
 |---|---|
 | **OWNER** | All permissions |
 | **ADMIN** | All permissions |
-| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents, transactions, policies, audit logs, evidence export, AI risk memo |
-| **COMPLIANCE_ANALYST** | Read/write cases, documents, transactions, policies read, AI risk memo |
-| **READ_ONLY_AUDITOR** | Read-only access to cases, documents, transactions, policies, audit logs, evidence export |
+| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents read/upload/archive, transactions, policies, audit logs, evidence export, AI risk memo |
+| **COMPLIANCE_ANALYST** | Read/write cases, documents read/upload (no archive), transactions, policies read, AI risk memo |
+| **READ_ONLY_AUDITOR** | Read-only access to cases, documents read/download (no upload/archive), transactions, policies, audit logs, evidence export |
 
 ## Rate Limiting
 Login attempts are rate-limited per IP (5 attempts per 15 minutes). The current implementation uses an in-memory store suitable for local development only. Production deployments must replace this with a distributed rate limiter (e.g., Redis, Upstash, or cloud WAF rules).
@@ -73,6 +73,21 @@ All significant actions (case creation, update, assignment, status change, note 
 - **Storage isolation**: Files are stored with organization-scoped keys. Raw storage keys are never exposed to the client.
 - **No public URLs**: Downloads are served through protected API routes with RBAC checks.
 - **No malware scanning in this phase**: Malware scanning is not yet integrated. Production deployments must add AV scanning before accepting untrusted uploads.
+
+### Document Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Upload | `documents:upload` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
+| Download | `documents:read` | All roles |
+| Archive | `documents:archive` | OWNER, ADMIN, COMPLIANCE_MANAGER |
+| List/View | `documents:read` | All roles |
+
+### Text Extraction Behavior
+- **PDF**: Extracted via pdfjs-dist (text-based PDFs only). Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.
+- **TXT/CSV**: Read as UTF-8 text. Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.
+- **Images** (PNG/JPEG): Marked UNSUPPORTED with metadata `reason: "OCR not implemented in this phase"`. Status stays UPLOADED. No extraction audit event created.
+- **Extraction failures**: Do not reject the upload. Status → FAILED. Audit event `DOCUMENT_EXTRACTION_FAILED`. The stored file is not deleted.
+- **No extracted text in audit metadata**: Audit events contain source metadata only, never the extracted content.
 
 ## Data Handling
 - PII and sensitive documents are encrypted at rest.
