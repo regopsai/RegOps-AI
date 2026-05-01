@@ -1,0 +1,12 @@
+{
+  "name": "@regops-ai/config",
+  "version": "0.0.0",
+  "private": true,
+  "files": ["tsconfig"],
+  "scripts": {
+    "clean": "echo 'Nothing to clean'",
+    "lint": "echo 'Nothing to lint'",
+    "typecheck": "echo 'Nothing to typecheck'",
+    "test": "echo 'No tests yet'"
+  }
+}

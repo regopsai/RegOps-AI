@@ -1,0 +1,23 @@
+export enum CaseStatus {
+  OPEN = "OPEN",
+  IN_REVIEW = "IN_REVIEW",
+  PENDING_EVIDENCE = "PENDING_EVIDENCE",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  ESCALATED = "ESCALATED",
+}
+
+export enum RiskLevel {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  CRITICAL = "CRITICAL",
+}
+
+export enum DecisionType {
+  APPROVE = "APPROVE",
+  REJECT = "REJECT",
+  REQUEST_EVIDENCE = "REQUEST_EVIDENCE",
+  ESCALATE = "ESCALATE",
+  HOLD = "HOLD",
+}
