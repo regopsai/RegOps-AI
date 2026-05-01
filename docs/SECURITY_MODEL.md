@@ -93,6 +93,12 @@ All significant actions (case creation, update, assignment, status change, note 
 |---|---|---|
 | Run checks | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
 
+### AI Risk Memo Permissions
+| Action | Required Permission | Who Can |
+|---|---|---|
+| Generate memo | `ai:risk_memo` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
+| Accept memo | `cases:update` | OWNER, ADMIN, COMPLIANCE_MANAGER, COMPLIANCE_ANALYST |
+
 ### Text Extraction Behavior
 - **PDF**: Extracted via pdfjs-dist (text-based PDFs only). Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.
 - **TXT/CSV**: Read as UTF-8 text. Status → EXTRACTED. Audit event `DOCUMENT_EXTRACTION_COMPLETED`.

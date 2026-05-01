@@ -13,12 +13,12 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 3. **Document & Evidence Management**: Secure upload, storage, download, and archive of compliance documents. Server-side file validation (magic bytes, MIME, extension, size, SHA-256). Text extraction for PDF, TXT, CSV. Images accepted without OCR.
 4. **Transaction Import**: CSV import with validation, deduplication (skip/fail modes), batch tracking, and linking to customers/businesses/cases.
 5. **Deterministic AML Risk Signals**: Rule-based risk detection (high-value, structuring, high-risk country, rapid flow, many counterparties, missing profile data, missing documents). Idempotent generation with evidence hashing.
-6. **AI Assistance**: AI-generated risk summaries and policy checks with clear citations. AI is strictly advisory.
+6. **AI Risk Memo Generation**: Structured advisory risk memos generated from case evidence (profile, documents, transactions, risk signals, notes). Includes executive summary, document/transaction review, risk signal synthesis, missing information checklist, recommended action, evidence references, and limitations. Human acceptance workflow with optional case note creation. AI is strictly advisory.
 4. **Human Oversight**: Every approval, rejection, or escalation requires a human reviewer.
 5. **Audit Trail**: Immutable event log for every case action and decision.
 6. **Evidence Management**: Attach and export documents and evidence tied to cases.
 7. **Tenant Isolation**: Multi-tenant architecture ensuring strict data separation.
-8. **RBAC**: Role-based access control with 5 roles and 22 permissions.
+8. **RBAC**: Role-based access control with 5 roles and 23 permissions.
 
 ## Non-Goals (for MVP)
 - Real-time transaction monitoring
@@ -26,6 +26,8 @@ RegOps AI is a compliance-native AI back office for regulated fintech operations
 - Public API for external integrators
 - Mobile-native applications
 - Approval decisions (APPROVED/REJECTED) — reserved for later phase
+- Policy Q&A chatbot — reserved for later phase
+- Autonomous compliance decisions — explicitly out of scope
 
 ## Target Users
 - Compliance officers

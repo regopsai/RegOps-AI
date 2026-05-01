@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCase, changeCaseStatus, assignCase, updateCase, addCaseNote, getCaseAuditEvents, runCaseRiskChecks } from "@/lib/cases/server";
+import { generateRiskMemo, acceptRiskMemo } from "@/lib/ai/server";
 import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
@@ -26,6 +27,7 @@ export default async function CaseDetailPage({
   const canImport = hasPermission(context.membership.role, "transactions:import");
   const canRunRiskChecks = hasPermission(context.membership.role, "cases:update");
   const canArchive = hasPermission(context.membership.role, "documents:archive");
+  const canGenerateMemo = hasPermission(context.membership.role, "ai:risk_memo");
 
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: context.organization.id, status: "ACTIVE" },
@@ -37,6 +39,17 @@ export default async function CaseDetailPage({
   const documents = await prisma.document.findMany({
     where: { organizationId: context.organization.id, complianceCaseId: caseId, deletedAt: null },
     include: { uploadedBy: { select: { id: true, name: true, email: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const riskMemos = await prisma.riskMemo.findMany({
+    where: { organizationId: context.organization.id, complianceCaseId: caseId },
+    orderBy: { createdAt: "desc" },
+    include: { acceptedBy: { select: { id: true, name: true, email: true } } },
+  });
+
+  const latestAgentRun = await prisma.agentRun.findFirst({
+    where: { organizationId: context.organization.id, complianceCaseId: caseId, agentType: "RISK_MEMO" },
     orderBy: { createdAt: "desc" },
   });
 
@@ -238,6 +251,126 @@ export default async function CaseDetailPage({
                 canArchive={canArchive}
               />
             </div>
+          </Card>
+
+          {/* AI Risk Memo */}
+          <Card title="AI Risk Memo">
+            <div className="mb-3 space-y-2">
+              {canGenerateMemo && (
+                <form action={async () => {
+                  "use server";
+                  await generateRiskMemo(caseId);
+                }}>
+                  <button
+                    type="submit"
+                    className="w-full rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                  >
+                    Generate Risk Memo
+                  </button>
+                </form>
+              )}
+              {latestAgentRun?.status === "RUNNING" && (
+                <p className="text-xs text-amber-600">Generating risk memo...</p>
+              )}
+              {latestAgentRun?.status === "FAILED" && (
+                <p className="text-xs text-red-600">Last generation failed. You can retry.</p>
+              )}
+              <p className="text-xs text-slate-500">
+                AI memo is advisory. Human compliance decision is required.
+              </p>
+            </div>
+
+            {riskMemos.length === 0 ? (
+              <p className="text-sm text-slate-500">No risk memos generated yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {riskMemos.map((memo) => (
+                  <div key={memo.id} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
+                        {new Date(memo.createdAt).toLocaleString()}
+                      </span>
+                      <RecommendedActionBadge action={memo.recommendedAction} />
+                    </div>
+
+                    <div className="mt-2 space-y-2 text-sm">
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Executive Summary</span>
+                        <p className="text-slate-700">{memo.executiveSummary}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Profile Summary</span>
+                        <p className="text-slate-700">{memo.profileSummary}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Document Review</span>
+                        <p className="text-slate-700">{memo.documentReview}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Transaction Review</span>
+                        <p className="text-slate-700">{memo.transactionReview}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Risk Signals</span>
+                        <p className="text-slate-700">{memo.riskSignalsSummary}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Missing Information</span>
+                        <p className="text-slate-700">{memo.missingInformation}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Limitations</span>
+                        <p className="text-slate-700">{memo.limitations}</p>
+                      </div>
+                      {memo.evidenceReferencesJson && (
+                        <div>
+                          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Evidence References</span>
+                          <ul className="mt-1 space-y-1">
+                            {JSON.parse(memo.evidenceReferencesJson).map((ref: { type: string; id: string; label: string; relevance: string }) => (
+                              <li key={ref.id} className="text-xs text-slate-600">
+                                [{ref.type}] {ref.label} — {ref.relevance}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {memo.acceptedAt ? (
+                      <div className="mt-3 rounded bg-green-50 px-2 py-1 text-xs text-green-700">
+                        Accepted by {memo.acceptedBy?.name ?? memo.acceptedBy?.email} on{" "}
+                        {new Date(memo.acceptedAt).toLocaleString()}
+                      </div>
+                    ) : canUpdate ? (
+                      <div className="mt-3 flex items-center gap-2">
+                        <form action={async () => {
+                          "use server";
+                          await acceptRiskMemo(memo.id, false);
+                        }}>
+                          <button
+                            type="submit"
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Accept Memo
+                          </button>
+                        </form>
+                        <form action={async () => {
+                          "use server";
+                          await acceptRiskMemo(memo.id, true);
+                        }}>
+                          <button
+                            type="submit"
+                            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Accept & Add to Notes
+                          </button>
+                        </form>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Notes */}
@@ -463,6 +596,20 @@ function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[severity] ?? "bg-slate-50 text-slate-700"}`}>
       {severity}
+    </span>
+  );
+}
+
+function RecommendedActionBadge({ action }: { action: string }) {
+  const colors: Record<string, string> = {
+    LOW_RISK_REVIEW: "bg-green-50 text-green-700",
+    MEDIUM_RISK_REVIEW: "bg-yellow-50 text-yellow-700",
+    HIGH_RISK_ESCALATION: "bg-red-50 text-red-700",
+    REQUEST_MORE_INFORMATION: "bg-blue-50 text-blue-700",
+  };
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[action] ?? "bg-slate-50 text-slate-700"}`}>
+      {action}
     </span>
   );
 }

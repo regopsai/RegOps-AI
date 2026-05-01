@@ -17,6 +17,8 @@ import {
   PolicyStatus,
   TransactionImportStatus,
   TransactionImportMode,
+  AgentType,
+  AgentRunStatus,
 } from "@prisma/client";
 
 async function main() {
@@ -521,6 +523,58 @@ async function main() {
     ],
   });
   console.log(`RiskSignals created: ${riskSignals.count}`);
+
+  const agentRun = await prisma.agentRun.create({
+    data: {
+      organizationId: org.id,
+      complianceCaseId: businessCase.id,
+      agentType: AgentType.RISK_MEMO,
+      provider: "seed",
+      model: "seed-model",
+      promptVersion: "risk-memo-v1",
+      inputHash: "seed-context-hash-001",
+      status: AgentRunStatus.SUCCEEDED,
+      outputJson: JSON.stringify({
+        executiveSummary: "Seed advisory risk memo for Global Payments Ltd.",
+        profileSummary: "Business incorporated in IE, operating in ES, high risk.",
+        documentReview: "Company registration on file. Annual report pending.",
+        transactionReview: "Large inbound investments detected. One high-risk country transaction.",
+        riskSignalsSummary: "4 deterministic risk signals identified including high-value, high-risk country, rapid flow, and missing documents.",
+        missingInformation: "Beneficial ownership declaration missing.",
+        recommendedAction: "HIGH_RISK_ESCALATION",
+        evidenceReferences: [
+          { type: "case", id: businessCase.id, label: businessCase.title, relevance: "Primary subject" },
+          { type: "profile", id: businessCustomer.id, label: businessCustomer.legalName, relevance: "Subject profile" },
+        ],
+        limitations: "This is seeded demo data. Human review is required.",
+      }),
+      tokenUsageJson: JSON.stringify({ promptTokens: 1000, completionTokens: 500, totalTokens: 1500 }),
+      startedAt: new Date(),
+      completedAt: new Date(),
+    },
+  });
+  console.log(`AgentRun created: ${agentRun.id}`);
+
+  const riskMemo = await prisma.riskMemo.create({
+    data: {
+      organizationId: org.id,
+      complianceCaseId: businessCase.id,
+      agentRunId: agentRun.id,
+      executiveSummary: "Seed advisory risk memo for Global Payments Ltd.",
+      profileSummary: "Business incorporated in IE, operating in ES, high risk.",
+      documentReview: "Company registration on file. Annual report pending.",
+      transactionReview: "Large inbound investments detected. One high-risk country transaction.",
+      riskSignalsSummary: "4 deterministic risk signals identified including high-value, high-risk country, rapid flow, and missing documents.",
+      missingInformation: "Beneficial ownership declaration missing.",
+      recommendedAction: "HIGH_RISK_ESCALATION",
+      evidenceReferencesJson: JSON.stringify([
+        { type: "case", id: businessCase.id, label: businessCase.title, relevance: "Primary subject" },
+        { type: "profile", id: businessCustomer.id, label: businessCustomer.legalName, relevance: "Subject profile" },
+      ]),
+      limitations: "This is seeded demo data. Human review is required.",
+    },
+  });
+  console.log(`RiskMemo created: ${riskMemo.id}`);
 
   const policyDoc = await prisma.policyDocument.create({
     data: {

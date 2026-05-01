@@ -145,6 +145,9 @@ Returns full profile with related cases, transactions, documents, and risk signa
 | `CASE_OPENED` | Case opened (seed) |
 | `CASE_ESCALATED` | Case escalated (seed) |
 | `RISK_SIGNAL_CREATED` | Risk signal generated |
+| `RISK_MEMO_GENERATED` | AI risk memo generated successfully |
+| `RISK_MEMO_GENERATION_FAILED` | AI risk memo generation failed |
+| `RISK_MEMO_ACCEPTED` | Human reviewer accepted AI risk memo |
 | `DOCUMENT_UPLOADED` | Document uploaded |
 | `DOCUMENT_DOWNLOADED` | Document downloaded |
 | `DOCUMENT_ARCHIVED` | Document archived |
@@ -267,6 +270,59 @@ Runs deterministic AML risk rules against case-linked transactions and profile. 
 
 ### Idempotency
 Risk signals use `evidenceHash` (SHA-256 of rule-specific evidence). The database enforces `UNIQUE(organizationId, ruleId, evidenceHash)`. Repeated runs skip duplicates.
+
+## AI Risk Memo
+
+### Server Actions
+
+#### `generateRiskMemo(caseId: string)`
+**Permission:** `ai:risk_memo`
+
+Generates an advisory AI risk memo for a case. Builds case evidence context, invokes the AI provider, validates structured output, creates an `AgentRun` and `RiskMemo`.
+
+**Side effects:** Creates `AgentRun` (RUNNING → SUCCEEDED/FAILED), creates `RiskMemo`, writes `RISK_MEMO_GENERATED` or `RISK_MEMO_GENERATION_FAILED` audit event.
+
+**Returns:** `RiskMemo`
+
+#### `acceptRiskMemo(riskMemoId: string, createCaseNoteFromMemo?: boolean)`
+**Permission:** `cases:update`
+
+Accepts an AI-generated risk memo. Sets `acceptedByUserId` and `acceptedAt`. Optionally creates a case note summarizing the memo.
+
+**Side effects:** Updates `RiskMemo`, optionally creates `CaseNote`, writes `RISK_MEMO_ACCEPTED` audit event.
+
+**Returns:** `{ riskMemo, caseNoteId? }`
+
+### API Routes
+
+#### `POST /api/cases/[caseId]/risk-memos/generate`
+**Permission:** `ai:risk_memo`
+
+Programmatic endpoint to generate a risk memo. Returns structured result or safe error.
+
+#### `POST /api/risk-memos/[riskMemoId]/accept`
+**Permission:** `cases:update`
+
+Accepts a risk memo. Body may include `createCaseNoteFromMemo: boolean`.
+
+### Service Functions (`lib/ai/`)
+
+- `buildRiskMemoContextService` — Fetches case evidence, builds structured context, computes hash, truncates long text safely.
+- `generateRiskMemoService` — Permission check, case validation, context building, AgentRun lifecycle, AI provider invocation, output validation, RiskMemo creation, audit logging.
+- `acceptRiskMemoService` — Permission check, memo validation, acceptance update, optional case note creation, audit logging.
+
+### Risk Memo Schema
+
+AI output is validated against `riskMemoAIOutputSchema`:
+- `executiveSummary` — string, required
+- `profileSummary` — string, required
+- `documentReview` — string, required
+- `transactionReview` — string, required
+- `riskSignalsSummary` — string, required
+- `missingInformation` — string, required
+- `recommendedAction` — enum: LOW_RISK_REVIEW, MEDIUM_RISK_REVIEW, HIGH_RISK_ESCALATION, REQUEST_MORE_INFORMATION
+- `evidenceReferences` — array of { type, id, label, relevance }
+- `limitations` — string, required
 
 ## Pages & Routes
 

@@ -10,7 +10,7 @@ RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto pl
 
 - `apps/web` — Next.js App Router application with auth and dashboard
 - `packages/database` — Prisma database client and domain helpers
-- `packages/ai` — AI provider interfaces (implementation TBD)
+- `packages/ai` — AI provider abstraction (OpenAI-compatible + mock providers, structured JSON generation, zod schema validation)
 - `packages/compliance-core` — Shared compliance domain types
 - `packages/config` — Shared TypeScript and tooling configuration
 - `packages/ui` — Shared UI utilities and components
@@ -75,7 +75,7 @@ The seed script creates these users (all with the same dev password):
 ### Case Management
 - **Cases list** (`/cases`) — Filter by status, risk level, subject type, assignee; search by title/customer/business name
 - **New case** (`/cases/new`) — Create cases linked to individual customers or businesses
-- **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, audit timeline; update status, assign, add notes (RBAC-enforced)
+- **Case workspace** (`/cases/[caseId]`) — View case details, risk signals, transactions, documents, notes, AI risk memos, audit timeline; update status, assign, add notes, generate/accept AI risk memos (RBAC-enforced)
 
 ### Transaction Import
 - **Transactions** (`/transactions`) — List with filters (direction, currency, country, date range, amount, search) and import button
@@ -100,7 +100,7 @@ Rules implemented:
 - **Business detail** (`/businesses/[businessId]`) — Profile summary, related cases, transactions, documents, risk signals
 
 ### Auth & Access Control
-- Role-based access control with 5 roles and 22 permissions
+- Role-based access control with 5 roles and 23 permissions
 - Organization-scoped data isolation
 - Every mutation creates an append-only audit event
 
@@ -154,6 +154,16 @@ pnpm test
   - All 7 deterministic AML rules: threshold, structuring, high-risk country, rapid flow, many counterparties, missing profile data, missing documents.
 - **Risk signal generation integration tests**:
   - Idempotency, audit events, cross-org rejection.
+- **AI provider unit tests**:
+  - Mock provider deterministic output, OpenAI-compatible provider request building, timeout handling, error response handling, API key redaction.
+- **Risk memo schema tests**:
+  - Valid output acceptance, unsupported action rejection, empty string rejection, evidence reference validation.
+- **Context builder integration tests**:
+  - Profile/documents/transactions/signals/notes inclusion, organization isolation, text truncation, hash stability.
+- **Risk memo generation integration tests**:
+  - AgentRun lifecycle, RiskMemo creation, audit events, failure handling, no ApprovalDecision creation, no case status change, RBAC enforcement, cross-org rejection.
+- **Risk memo acceptance integration tests**:
+  - Acceptance workflow, case note creation, audit events, no ApprovalDecision creation, no case status change, idempotency, RBAC enforcement, cross-org rejection.
 
 ## Tech Stack
 
