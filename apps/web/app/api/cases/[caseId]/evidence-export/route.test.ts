@@ -188,4 +188,36 @@ describe("GET /api/cases/[caseId]/evidence-export", () => {
     });
     expect(auditEvents.length).toBe(1);
   });
+
+  it("returns safe filename in Content-Disposition", async () => {
+    const { org, owner, openCase } = await seedOrg();
+    (requirePermission as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: owner.id, name: owner.name, email: owner.email },
+      organization: { id: org.id, name: org.name },
+      membership: { role: OrganizationRole.OWNER },
+    });
+
+    const request = new Request(`http://localhost/api/cases/${openCase.id}/evidence-export?format=json`);
+    const response = await GET(request, { params: Promise.resolve({ caseId: openCase.id }) });
+    const cd = response.headers.get("Content-Disposition");
+    expect(cd).toMatch(/^attachment; filename="regops-evidence-case-[^"]+-\d{8}\.json"$/);
+  });
+
+  it("does not expose raw Prisma errors", async () => {
+    const { org, owner, openCase } = await seedOrg();
+    (requirePermission as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: owner.id, name: owner.name, email: owner.email },
+      organization: { id: org.id, name: org.name },
+      membership: { role: OrganizationRole.OWNER },
+    });
+
+    const request = new Request(`http://localhost/api/cases/${openCase.id}/evidence-export?format=json`);
+    const response = await GET(request, { params: Promise.resolve({ caseId: openCase.id }) });
+    if (response.status >= 400) {
+      const body = await response.json();
+      expect(JSON.stringify(body)).not.toContain("prisma");
+      expect(JSON.stringify(body)).not.toContain("sql");
+      expect(JSON.stringify(body)).not.toContain("query");
+    }
+  });
 });

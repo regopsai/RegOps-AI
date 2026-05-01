@@ -523,5 +523,132 @@ describe("evidence-export-service", () => {
       });
       expect(auditEvents.length).toBe(0);
     });
+
+    it("allows ADMIN to export", async () => {
+      const { org, complianceCase } = await seedCustomerCase();
+      const admin = await prisma.user.create({
+        data: { email: "admin-export@example.com", name: "Admin", status: UserStatus.ACTIVE },
+      });
+      await prisma.organizationMember.create({
+        data: { organizationId: org.id, userId: admin.id, role: OrganizationRole.ADMIN, status: MembershipStatus.ACTIVE },
+      });
+      const result = await generateEvidenceExportService(
+        { userId: admin.id, organizationId: org.id, role: "ADMIN" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      expect(result.contentType).toBe("application/json");
+    });
+
+    it("allows COMPLIANCE_MANAGER to export", async () => {
+      const { org, complianceCase } = await seedCustomerCase();
+      const manager2 = await prisma.user.create({
+        data: { email: "manager2-export@example.com", name: "Manager2", status: UserStatus.ACTIVE },
+      });
+      await prisma.organizationMember.create({
+        data: { organizationId: org.id, userId: manager2.id, role: OrganizationRole.COMPLIANCE_MANAGER, status: MembershipStatus.ACTIVE },
+      });
+      const result = await generateEvidenceExportService(
+        { userId: manager2.id, organizationId: org.id, role: "COMPLIANCE_MANAGER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      expect(result.contentType).toBe("application/json");
+    });
+
+    it("allows READ_ONLY_AUDITOR to export", async () => {
+      const { org, complianceCase } = await seedCustomerCase();
+      const auditor2 = await prisma.user.create({
+        data: { email: "auditor2-export@example.com", name: "Auditor2", status: UserStatus.ACTIVE },
+      });
+      await prisma.organizationMember.create({
+        data: { organizationId: org.id, userId: auditor2.id, role: OrganizationRole.READ_ONLY_AUDITOR, status: MembershipStatus.ACTIVE },
+      });
+      const result = await generateEvidenceExportService(
+        { userId: auditor2.id, organizationId: org.id, role: "READ_ONLY_AUDITOR" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      expect(result.contentType).toBe("application/json");
+    });
+  });
+
+  describe("export content safety", () => {
+    it("JSON does not contain internal note body", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      const json = JSON.stringify(exportData);
+      expect(json).not.toContain("Internal secret note body");
+    });
+
+    it("PDF does not contain internal note body", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "pdf" }
+      );
+      const buffer = await renderEvidenceExportPdfService(exportData);
+      const text = buffer.toString("ascii");
+      expect(text).not.toContain("Internal secret note body");
+    });
+
+    it("JSON does not contain API key-like values", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      const json = JSON.stringify(exportData);
+      expect(json).not.toContain("sk-");
+      expect(json).not.toContain("api_key");
+      expect(json).not.toContain("apiKey");
+    });
+
+    it("JSON does not contain unmasked counterpartyAccount", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      const json = JSON.stringify(exportData);
+      expect(json).not.toContain("GB82WEST12345698765432");
+      expect(json).toContain("******************5432");
+    });
+
+    it("PDF does not contain unmasked counterpartyAccount", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "pdf" }
+      );
+      const buffer = await renderEvidenceExportPdfService(exportData);
+      const text = buffer.toString("ascii");
+      expect(text).not.toContain("GB82WEST12345698765432");
+      // PDF text is compressed; verify masking at the data level instead
+      expect(exportData.transactions.rows[0].counterpartyAccount).toBe("******************5432");
+    });
+
+    it("audit metadata is compact and does not contain export content", async () => {
+      const { org, owner, complianceCase } = await seedCustomerCase();
+      await generateEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      const auditEvent = await prisma.auditEvent.findFirst({
+        where: { organizationId: org.id, action: "EVIDENCE_EXPORT_GENERATED" },
+      });
+      expect(auditEvent).not.toBeNull();
+      const meta = JSON.parse(auditEvent!.metadataJson ?? "{}");
+      expect(meta.format).toBe("json");
+      expect(meta.exportVersion).toBe("1.0");
+      expect(meta.documentCount).toBe(1);
+      expect(meta.transactionCount).toBe(1);
+      expect(meta.riskSignalCount).toBe(1);
+      expect(meta.riskMemoCount).toBe(1);
+      expect(meta.approvalDecisionCount).toBe(1);
+      expect(meta.caseSummary).toBeUndefined();
+      expect(meta.transactions).toBeUndefined();
+      expect(meta.documents).toBeUndefined();
+    });
   });
 });

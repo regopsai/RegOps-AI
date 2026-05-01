@@ -20,58 +20,19 @@ import {
   AgentType,
   AgentRunStatus,
 } from "@prisma/client";
+import { isProductionEnvironment, cleanupSeedData } from "../src/seed-cleanup";
 
 async function main() {
   console.log("Start seeding...");
 
-  // Clean up existing seed data to ensure idempotency
-  const existingOrg = await prisma.organization.findUnique({
-    where: { slug: "acme-remittance-eu" },
-  });
-  if (existingOrg) {
-    await prisma.transaction.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.transactionImportBatch.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.approvalDecision.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.riskMemo.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.agentRun.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.riskSignal.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.caseNote.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.complianceCase.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.document.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.policyChunk.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.policyDocument.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.businessProfile.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.customerProfile.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.auditEvent.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.organizationMember.deleteMany({ where: { organizationId: existingOrg.id } });
-    await prisma.passwordCredential.deleteMany({
-      where: {
-        user: {
-          email: {
-            in: [
-              "owner@acme-remittance.test",
-              "manager@acme-remittance.test",
-              "analyst@acme-remittance.test",
-              "auditor@acme-remittance.test",
-            ],
-          },
-        },
-      },
-    });
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          in: [
-            "owner@acme-remittance.test",
-            "manager@acme-remittance.test",
-            "analyst@acme-remittance.test",
-            "auditor@acme-remittance.test",
-          ],
-        },
-      },
-    });
-    await prisma.organization.delete({ where: { id: existingOrg.id } });
+  if (isProductionEnvironment(process.env.DATABASE_URL, process.env.NODE_ENV)) {
+    console.error("Seed cleanup and re-seeding is blocked in production environments.");
+    console.error("DATABASE_URL or NODE_ENV indicates a production-like environment.");
+    process.exit(1);
   }
+
+  // Clean up existing seed data to ensure idempotency
+  await cleanupSeedData(prisma);
 
   // Idempotent: use slug for organization, email for users
   const org = await prisma.organization.upsert({

@@ -144,6 +144,14 @@ Tests use dedicated databases to ensure deterministic, CI-safe execution:
 - No additional runtime dependencies or browser plugins required
 - Exports are generated on-demand via API route and streamed as attachments
 
+## Seed Safety
+- The seed script (`pnpm db:seed`) is idempotent and safe for local development
+- It targets only the deterministic demo organization (`slug: acme-remittance-eu`)
+- It deletes only seed-created users (`@acme-remittance.test` emails)
+- **Production guard**: seed is blocked if `NODE_ENV=production` or `DATABASE_URL` contains production indicators (`amazonaws.com`, `neon.tech`, `prod`, `live`, `production`)
+- Non-seed organizations, users, and data are never affected by seed cleanup
+- Seed cleanup is tested in `packages/database/src/seed-cleanup.test.ts`
+
 ## Future Deployment Target
 - Dockerized container deployment
 - PostgreSQL for primary data

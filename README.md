@@ -187,10 +187,15 @@ This creates the test databases (if missing) and applies Prisma migrations. You 
   - Acceptance workflow, case note creation, audit events, no ApprovalDecision creation, no case status change, idempotency, RBAC enforcement, cross-org rejection.
 - **Evidence export integration tests**:
   - Export builder: customer case, business case, document metadata, transaction masking, risk signal evidence summarization, audit metadata redaction, cross-org rejection, analyst denial.
-  - PDF renderer: non-empty buffer, %PDF header, no storageKey, no raw prompt text.
-  - JSON renderer: valid JSON, no storageKey, no API keys, masked counterpartyAccount.
-  - Audit: success writes `EVIDENCE_EXPORT_GENERATED`, unauthorized attempts write no audit.
-  - API route: 400/403/404 responses, correct content-type and content-disposition.
+  - PDF renderer: non-empty buffer, %PDF header, no storageKey, no raw prompt text, no internal note bodies, no unmasked counterpartyAccount.
+  - JSON renderer: valid JSON, no storageKey, no API keys, no internal note bodies, masked counterpartyAccount.
+  - Audit: success writes `EVIDENCE_EXPORT_GENERATED`, unauthorized attempts write no audit, metadata is compact.
+  - API route: 400/403/404 responses, correct content-type and content-disposition, safe filename, no raw Prisma errors.
+  - RBAC: OWNER, ADMIN, COMPLIANCE_MANAGER, READ_ONLY_AUDITOR can export; COMPLIANCE_ANALYST cannot.
+- **Seed safety tests**:
+  - Production environment detection blocks destructive cleanup.
+  - Cleanup targets only the seeded organization (`acme-remittance-eu`).
+  - Non-seeded organizations, users, and data are preserved.
 - **Final approval decision integration tests**:
   - All 5 decision types with correct status transitions, RBAC enforcement (OWNER/ADMIN/COMPLIANCE_MANAGER allowed; ANALYST/AUDITOR denied), terminal case rejection, cross-org isolation, empty reason rejection.
   - Evidence snapshot safety: no extractedText, storageKey, note bodies, memo text, API keys.
