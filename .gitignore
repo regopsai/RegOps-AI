@@ -44,3 +44,4 @@ pnpm-debug.log*
 *.pid
 *.seed
 *.pid.lock
+*.tsbuildinfo
