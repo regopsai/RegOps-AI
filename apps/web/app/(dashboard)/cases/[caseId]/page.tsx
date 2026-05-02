@@ -5,6 +5,9 @@ import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
 import { getMockProviderWarning } from "@regops-ai/ai";
+import { getMockProviderWarning as getMockOnchainWarning } from "@/lib/onchain/providers/provider-factory";
+import { maskWalletAddress } from "@/lib/onchain/masking";
+import { runOnChainRiskChecksForCaseService } from "@/lib/onchain/onchain-risk-service";
 import Link from "next/link";
 import { DocumentUpload } from "../../components/document-upload";
 import { DocumentList } from "../../components/document-list";
@@ -27,11 +30,13 @@ export default async function CaseDetailPage({
   const canUpload = hasPermission(context.membership.role, "documents:upload");
   const canImport = hasPermission(context.membership.role, "transactions:import");
   const canRunRiskChecks = hasPermission(context.membership.role, "cases:update");
+  const canRunOnChainRiskChecks = hasPermission(context.membership.role, "onchain:screen");
   const canArchive = hasPermission(context.membership.role, "documents:archive");
   const canGenerateMemo = hasPermission(context.membership.role, "ai:risk_memo");
   const canMakeFinalDecision = hasPermission(context.membership.role, "cases:final_decision");
   const canExportEvidence = hasPermission(context.membership.role, "evidence:export");
   const mockWarning = getMockProviderWarning();
+  const mockOnchainWarning = getMockOnchainWarning();
   const isTerminal = ["APPROVED", "REJECTED", "CLOSED"].includes(caseData.status);
 
   const members = await prisma.organizationMember.findMany({
@@ -56,6 +61,32 @@ export default async function CaseDetailPage({
 
   const latestAgentRun = await prisma.agentRun.findFirst({
     where: { organizationId: context.organization.id, complianceCaseId: caseId, agentType: "RISK_MEMO" },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const wallets = await prisma.walletAddress.findMany({
+    where: { organizationId: context.organization.id, complianceCaseId: caseId, deletedAt: null },
+    include: {
+      screeningRuns: { orderBy: { screenedAt: "desc" }, take: 1 },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const onChainTxs = await prisma.onChainTransaction.findMany({
+    where: { organizationId: context.organization.id, complianceCaseId: caseId },
+    orderBy: { blockTime: "desc" },
+    take: 20,
+  });
+
+  const onChainRiskSignals = await prisma.riskSignal.findMany({
+    where: {
+      organizationId: context.organization.id,
+      complianceCaseId: caseId,
+      OR: [
+        { walletAddressId: { not: null } },
+        { onChainTransactionId: { not: null } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -184,6 +215,106 @@ export default async function CaseDetailPage({
                   </li>
                 ))}
               </ul>
+            )}
+          </Card>
+
+          {/* Wallets */}
+          <Card title={`Wallets (${wallets.length})`}>
+            {wallets.length === 0 ? (
+              <p className="text-sm text-slate-500">No wallets linked.</p>
+            ) : (
+              <ul className="space-y-3">
+                {wallets.map((w) => (
+                  <li key={w.id} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <Link href={`/wallets/${w.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                        {w.network} {maskWalletAddress(w.address)}
+                      </Link>
+                      <RiskLevelBadge level={w.screeningRuns[0]?.riskLevel ?? "UNKNOWN"} />
+                    </div>
+                    {w.label && <p className="text-xs text-slate-500">{w.label}</p>}
+                    <p className="text-xs text-slate-500">
+                      Provider: {w.screeningRuns[0]?.provider ?? "—"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          {/* On-Chain Transactions */}
+          <Card title={`On-Chain Transactions (${onChainTxs.length})`}>
+            {onChainTxs.length === 0 ? (
+              <p className="text-sm text-slate-500">No on-chain transactions.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                      <th className="pb-2 pr-4">Network</th>
+                      <th className="pb-2 pr-4">Tx Hash</th>
+                      <th className="pb-2 pr-4">Direction</th>
+                      <th className="pb-2 pr-4">Asset</th>
+                      <th className="pb-2 pr-4">Amount</th>
+                      <th className="pb-2 pr-4">Block Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {onChainTxs.map((t) => (
+                      <tr key={t.id} className="border-b border-slate-100">
+                        <td className="py-2 pr-4">{t.network}</td>
+                        <td className="py-2 pr-4 font-mono">{maskWalletAddress(t.txHash)}</td>
+                        <td className="py-2 pr-4">{t.direction}</td>
+                        <td className="py-2 pr-4">{t.assetSymbol}</td>
+                        <td className="py-2 pr-4">{t.amount.toString()}</td>
+                        <td className="py-2 pr-4">{new Date(t.blockTime).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {/* On-Chain Risk Signals */}
+          <Card title={`On-Chain Risk Signals (${onChainRiskSignals.length})`}>
+            {onChainRiskSignals.length === 0 ? (
+              <p className="text-sm text-slate-500">No on-chain risk signals.</p>
+            ) : (
+              <ul className="space-y-3">
+                {onChainRiskSignals.map((rs) => (
+                  <li key={rs.id} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-900">{rs.title}</span>
+                      <SeverityBadge severity={rs.severity} />
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{rs.description}</p>
+                    <div className="mt-2 text-xs text-slate-500">
+                      Rule: {rs.ruleId} · {new Date(rs.createdAt).toLocaleDateString()}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canRunOnChainRiskChecks && (
+              <div className="mt-3">
+                {mockOnchainWarning.showWarning && (
+                  <div className={`mb-2 rounded px-2 py-1 text-xs ${mockOnchainWarning.message.includes("DANGER") ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                    {mockOnchainWarning.message}
+                  </div>
+                )}
+                <form action={async () => {
+                  "use server";
+                  await runOnChainRiskChecksForCaseService({ userId: context.user.id, organizationId: context.organization.id, role: context.membership.role }, caseId);
+                }}>
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Run On-Chain Risk Checks
+                  </button>
+                </form>
+              </div>
             )}
           </Card>
 

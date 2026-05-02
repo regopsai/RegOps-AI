@@ -402,6 +402,11 @@ AI output is validated against `riskMemoAIOutputSchema`:
 | `/transactions` | Transaction list | `transactions:read` |
 | `/transactions/import` | Import CSV | `transactions:import` |
 | `/transactions/[transactionId]` | Transaction detail | `transactions:read` |
+| `/wallets` | Wallet list | `onchain:read` |
+| `/wallets/new` | Add wallet | `onchain:write` |
+| `/wallets/[walletAddressId]` | Wallet detail | `onchain:read` |
+| `/wallets/screening-import` | Import screening CSV | `onchain:import` |
+| `/wallets/transactions-import` | Import on-chain transactions CSV | `onchain:import` |
 | `/settings/organization` | Org settings | `organization:read` |
 | `/settings/members` | Member management | `members:read` |
 | `/login` | Sign in | — |

@@ -139,6 +139,31 @@ enum TransactionImportMode {
   FAIL_ON_DUPLICATES
 }
 
+enum BlockchainNetwork {
+  SOLANA
+  ETHEREUM
+  BASE
+  TRON
+}
+
+enum WalletAddressStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum WalletScreeningStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum OnChainTransactionDirection {
+  INBOUND
+  OUTBOUND
+  SELF_TRANSFER
+  UNKNOWN
+}
+
 // Models
 
 model Organization {
@@ -166,6 +191,9 @@ model Organization {
   auditEvents              AuditEvent[]
   agentRuns                AgentRun[]
   transactionImportBatches TransactionImportBatch[]
+  walletAddresses          WalletAddress[]
+  walletScreeningRuns      WalletScreeningRun[]
+  onChainTransactions      OnChainTransaction[]
 
   @@index([status])
   @@index([createdAt])
@@ -194,6 +222,7 @@ model User {
   approvalDecisions      ApprovalDecision[]       @relation("ReviewerUser")
   createdPolicies        PolicyDocument[]         @relation("PolicyDocumentCreatedByUser")
   auditEvents            AuditEvent[]             @relation("ActorUser")
+  createdWalletAddresses WalletAddress[]          @relation("WalletAddressCreatedByUser")
 
   @@index([status])
   @@index([createdAt])
@@ -260,6 +289,7 @@ model CustomerProfile {
   transactions    Transaction[]
   complianceCases ComplianceCase[]
   riskSignals     RiskSignal[]
+  walletAddresses WalletAddress[]
 
   @@index([organizationId])
   @@index([externalReference])
@@ -291,6 +321,7 @@ model BusinessProfile {
   transactions    Transaction[]
   complianceCases ComplianceCase[]
   riskSignals     RiskSignal[]
+  walletAddresses WalletAddress[]
 
   @@index([organizationId])
   @@index([externalReference])
@@ -408,6 +439,8 @@ model ComplianceCase {
   riskMemos         RiskMemo[]
   approvalDecisions ApprovalDecision[]
   agentRuns         AgentRun[]
+  walletAddresses   WalletAddress[]
+  onChainTransactions OnChainTransaction[]
 
   @@index([organizationId])
   @@index([customerProfileId])
@@ -442,25 +475,29 @@ model CaseNote {
 }
 
 model RiskSignal {
-  id                String             @id @default(cuid())
-  organizationId    String
-  complianceCaseId  String?
-  customerProfileId String?
-  businessProfileId String?
-  transactionId     String?
-  ruleId            String
-  title             String
-  description       String             @db.Text
-  severity          RiskSignalSeverity
-  evidenceJson      String?            @db.Text
-  evidenceHash      String?
-  createdAt         DateTime           @default(now())
+  id                  String             @id @default(cuid())
+  organizationId      String
+  complianceCaseId    String?
+  customerProfileId   String?
+  businessProfileId   String?
+  transactionId       String?
+  walletAddressId     String?
+  onChainTransactionId String?
+  ruleId              String
+  title               String
+  description         String             @db.Text
+  severity            RiskSignalSeverity
+  evidenceJson        String?            @db.Text
+  evidenceHash        String?
+  createdAt           DateTime           @default(now())
 
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  complianceCase  ComplianceCase?  @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
-  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
-  businessProfile BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
-  transaction     Transaction?     @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  complianceCase       ComplianceCase?    @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
+  customerProfile      CustomerProfile?   @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  businessProfile      BusinessProfile?   @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+  transaction          Transaction?       @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  walletAddress        WalletAddress?     @relation(fields: [walletAddressId], references: [id], onDelete: SetNull)
+  onChainTransaction   OnChainTransaction? @relation(fields: [onChainTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, ruleId, evidenceHash])
   @@index([organizationId])
@@ -468,6 +505,8 @@ model RiskSignal {
   @@index([customerProfileId])
   @@index([businessProfileId])
   @@index([transactionId])
+  @@index([walletAddressId])
+  @@index([onChainTransactionId])
   @@index([severity])
   @@index([createdAt])
   @@index([evidenceHash])
@@ -661,5 +700,105 @@ model AgentRun {
   @@index([complianceCaseId])
   @@index([status])
   @@index([agentType])
+  @@index([createdAt])
+}
+
+model WalletAddress {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  customerProfileId  String?
+  businessProfileId  String?
+  complianceCaseId   String?
+  network            BlockchainNetwork
+  address            String
+  label              String?
+  addressType        String?
+  status             WalletAddressStatus @default(ACTIVE)
+  createdByUserId    String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerProfile     CustomerProfile?     @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
+  businessProfile     BusinessProfile?     @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+  complianceCase      ComplianceCase?      @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
+  createdBy           User                 @relation("WalletAddressCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  screeningRuns       WalletScreeningRun[]
+  onChainTransactions OnChainTransaction[]
+  riskSignals         RiskSignal[]
+
+  @@unique([organizationId, network, address])
+  @@index([organizationId])
+  @@index([customerProfileId])
+  @@index([businessProfileId])
+  @@index([complianceCaseId])
+  @@index([network])
+  @@index([address])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model WalletScreeningRun {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  walletAddressId  String
+  provider         String
+  providerRunId    String?
+  status           WalletScreeningStatus   @default(PENDING)
+  riskScore        Int?
+  riskLevel        RiskLevel               @default(UNKNOWN)
+  categoriesJson   String?                 @db.Text
+  labelsJson       String?                 @db.Text
+  rawProviderRef   String?
+  summary          String?                 @db.Text
+  screenedAt       DateTime                @default(now())
+  createdByUserId  String?
+  createdAt        DateTime                @default(now())
+
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  walletAddress WalletAddress   @relation(fields: [walletAddressId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([walletAddressId])
+  @@index([status])
+  @@index([provider])
+  @@index([screenedAt])
+  @@index([createdAt])
+}
+
+model OnChainTransaction {
+  id                    String                   @id @default(cuid())
+  organizationId        String
+  walletAddressId       String?
+  complianceCaseId      String?
+  network               BlockchainNetwork
+  txHash                String
+  direction             OnChainTransactionDirection
+  assetSymbol           String
+  assetMintOrContract   String?
+  amount                Decimal                  @db.Decimal(19, 8)
+  usdValue              Decimal?                 @db.Decimal(19, 4)
+  counterpartyAddress   String?
+  counterpartyLabel     String?
+  counterpartyRiskLevel RiskLevel?
+  counterpartyCategory  String?
+  blockTime             DateTime
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  walletAddress  WalletAddress? @relation(fields: [walletAddressId], references: [id], onDelete: SetNull)
+  complianceCase ComplianceCase? @relation(fields: [complianceCaseId], references: [id], onDelete: SetNull)
+  riskSignals    RiskSignal[]
+
+  @@unique([organizationId, network, txHash, walletAddressId])
+  @@index([organizationId])
+  @@index([walletAddressId])
+  @@index([complianceCaseId])
+  @@index([network])
+  @@index([txHash])
+  @@index([blockTime])
+  @@index([counterpartyAddress])
   @@index([createdAt])
 }

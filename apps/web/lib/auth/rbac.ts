@@ -26,7 +26,11 @@ export type Permission =
   | "policies:write"
   | "audit_logs:read"
   | "evidence:export"
-  | "ai:risk_memo";
+  | "ai:risk_memo"
+  | "onchain:read"
+  | "onchain:write"
+  | "onchain:screen"
+  | "onchain:import";
 
 export const ALL_PERMISSIONS: Permission[] = [
   "organization:read",
@@ -50,6 +54,10 @@ export const ALL_PERMISSIONS: Permission[] = [
   "audit_logs:read",
   "evidence:export",
   "ai:risk_memo",
+  "onchain:read",
+  "onchain:write",
+  "onchain:screen",
+  "onchain:import",
 ];
 
 export const ROLE_PERMISSIONS: Record<OrganizationRole, Permission[]> = {
@@ -74,6 +82,10 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, Permission[]> = {
     "audit_logs:read",
     "evidence:export",
     "ai:risk_memo",
+    "onchain:read",
+    "onchain:write",
+    "onchain:screen",
+    "onchain:import",
   ],
   COMPLIANCE_ANALYST: [
     "organization:read",
@@ -86,6 +98,10 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, Permission[]> = {
     "transactions:import",
     "policies:read",
     "ai:risk_memo",
+    "onchain:read",
+    "onchain:write",
+    "onchain:screen",
+    "onchain:import",
   ],
   READ_ONLY_AUDITOR: [
     "organization:read",
@@ -95,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<OrganizationRole, Permission[]> = {
     "policies:read",
     "audit_logs:read",
     "evidence:export",
+    "onchain:read",
   ],
 };
 

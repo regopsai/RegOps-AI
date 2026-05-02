@@ -29,6 +29,9 @@ import {
 async function cleanupTestData() {
   const tables = [
     "AuditEvent",
+    "OnChainTransaction",
+    "WalletScreeningRun",
+    "WalletAddress",
     "ApprovalDecision",
     "RiskMemo",
     "RiskAssessment",
@@ -649,6 +652,50 @@ describe("evidence-export-service", () => {
       expect(meta.caseSummary).toBeUndefined();
       expect(meta.transactions).toBeUndefined();
       expect(meta.documents).toBeUndefined();
+    });
+
+    it("JSON includes on-chain wallets with masked addresses", async () => {
+      const { org, owner, customer, complianceCase } = await seedCustomerCase();
+      const wallet = await prisma.walletAddress.create({
+        data: {
+          organizationId: org.id,
+          customerProfileId: customer.id,
+          complianceCaseId: complianceCase.id,
+          network: "SOLANA",
+          address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+          createdByUserId: owner.id,
+          status: "ACTIVE",
+        },
+      });
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "json" }
+      );
+      expect(exportData.onChainWallets.length).toBe(1);
+      expect(exportData.onChainWallets[0].addressMasked).toBe("7xKX...gAsU");
+      expect(exportData.onChainWallets[0].status).toBe("ACTIVE");
+    });
+
+    it("PDF export includes on-chain data in exportData", async () => {
+      const { org, owner, customer, complianceCase } = await seedCustomerCase();
+      await prisma.walletAddress.create({
+        data: {
+          organizationId: org.id,
+          customerProfileId: customer.id,
+          complianceCaseId: complianceCase.id,
+          network: "SOLANA",
+          address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+          createdByUserId: owner.id,
+          status: "ACTIVE",
+        },
+      });
+      const exportData = await buildEvidenceExportService(
+        { userId: owner.id, organizationId: org.id, role: "OWNER" },
+        { complianceCaseId: complianceCase.id, format: "pdf" }
+      );
+      expect(exportData.onChainWallets.length).toBe(1);
+      const buffer = await renderEvidenceExportPdfService(exportData);
+      expect(buffer.length).toBeGreaterThan(0);
     });
   });
 });

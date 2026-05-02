@@ -26,6 +26,9 @@ async function cleanupTestData() {
     "ComplianceCase",
     "Transaction",
     "TransactionImportBatch",
+    "OnChainTransaction",
+    "WalletScreeningRun",
+    "WalletAddress",
     "Document",
     "PolicyChunk",
     "PolicyDocument",
@@ -222,5 +225,74 @@ describe("buildRiskMemoContextService", () => {
     const result1 = await buildRiskMemoContextService(org.id, caseRecord.id);
     const result2 = await buildRiskMemoContextService(org.id, caseRecord.id);
     expect(result1.contextHash).toBe(result2.contextHash);
+  });
+
+  it("includes on-chain wallets and masks addresses", async () => {
+    const { org, owner, customer, caseRecord } = await seedOrgWithCase();
+    const wallet = await prisma.walletAddress.create({
+      data: {
+        organizationId: org.id,
+        customerProfileId: customer.id,
+        complianceCaseId: caseRecord.id,
+        network: "SOLANA",
+        address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+        createdByUserId: owner.id,
+        status: "ACTIVE",
+      },
+    });
+    await prisma.walletScreeningRun.create({
+      data: {
+        organizationId: org.id,
+        walletAddressId: wallet.id,
+        provider: "manual",
+        status: "COMPLETED",
+        riskScore: 85,
+        riskLevel: RiskLevel.HIGH,
+        categoriesJson: JSON.stringify(["mixer"]),
+        screenedAt: new Date(),
+      },
+    });
+
+    const result = await buildRiskMemoContextService(org.id, caseRecord.id);
+    const context = JSON.parse(result.contextJson);
+    expect(context.onChainWallets).toHaveLength(1);
+    expect(context.onChainWallets[0].addressMasked).toBe("7xKX...gAsU");
+    expect(context.onChainWallets[0].latestRiskLevel).toBe("HIGH");
+    expect(context.onChainWallets[0].providerCategories).toContain("mixer");
+    expect(result.contextText).toContain("On-Chain Wallets");
+  });
+
+  it("includes on-chain transactions", async () => {
+    const { org, owner, customer, caseRecord } = await seedOrgWithCase();
+    const wallet = await prisma.walletAddress.create({
+      data: {
+        organizationId: org.id,
+        customerProfileId: customer.id,
+        complianceCaseId: caseRecord.id,
+        network: "SOLANA",
+        address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+        createdByUserId: owner.id,
+        status: "ACTIVE",
+      },
+    });
+    await prisma.onChainTransaction.create({
+      data: {
+        organizationId: org.id,
+        walletAddressId: wallet.id,
+        complianceCaseId: caseRecord.id,
+        network: "SOLANA",
+        txHash: "txhash001",
+        direction: "INBOUND",
+        assetSymbol: "USDC",
+        amount: 15000,
+        usdValue: 15000,
+        blockTime: new Date(),
+      },
+    });
+
+    const result = await buildRiskMemoContextService(org.id, caseRecord.id);
+    const context = JSON.parse(result.contextJson);
+    expect(context.onChainTransactions).toHaveLength(1);
+    expect(context.onChainTransactions[0].txHash).toBe("txhash001");
   });
 });

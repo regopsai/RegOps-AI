@@ -31,9 +31,9 @@ Permissions are enforced at the API and server-page layer based on the user's `O
 |---|---|
 | **OWNER** | All permissions |
 | **ADMIN** | All permissions |
-| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents read/upload/archive, transactions read/import, policies, audit logs, evidence export, AI risk memo |
-| **COMPLIANCE_ANALYST** | Read/write cases, documents read/upload (no archive), transactions read/import, policies read, AI risk memo |
-| **READ_ONLY_AUDITOR** | Read-only access to cases, documents read/download (no upload/archive), transactions read (no import), policies, audit logs, evidence export |
+| **COMPLIANCE_MANAGER** | Read/write cases, assign, final decision, members read/invite, documents read/upload/archive, transactions read/import, policies, audit logs, evidence export, AI risk memo, onchain read/write/screen/import |
+| **COMPLIANCE_ANALYST** | Read/write cases, documents read/upload (no archive), transactions read/import, policies read, AI risk memo, onchain read/write/screen/import |
+| **READ_ONLY_AUDITOR** | Read-only access to cases, documents read/download (no upload/archive), transactions read (no import), policies, audit logs, evidence export, onchain read only |
 
 ## Rate Limiting
 Login attempts are rate-limited per IP (5 attempts per 15 minutes). The current implementation uses an in-memory store suitable for local development only. Production deployments must replace this with a distributed rate limiter (e.g., Redis, Upstash, or cloud WAF rules).
@@ -66,6 +66,7 @@ All significant actions (case creation, update, assignment, status change, note 
 - `AuditEvent` has no `updatedAt` field.
 - Only `createAuditEvent` is exposed; no update or delete helpers exist.
 - Every server action mutation creates at least one `AuditEvent` with actor, action, entity type, and metadata.
+- On-chain audit events: `WALLET_ADDRESS_CREATED`, `WALLET_ADDRESS_ARCHIVED`, `WALLET_SCREENING_RUN_CREATED`, `WALLET_SCREENING_RUN_FAILED`, `ONCHAIN_TRANSACTIONS_IMPORTED`, `ONCHAIN_RISK_SIGNALS_GENERATED`.
 
 ## Document Upload Security
 - **File validation**: All uploads are validated server-side for allowed extension, MIME type, magic bytes, size limit, and SHA-256 checksum.

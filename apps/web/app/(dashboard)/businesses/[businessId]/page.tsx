@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth/server";
 import { hasPermission } from "@/lib/auth/rbac";
 import { prisma } from "@regops-ai/database";
+import { maskWalletAddress } from "@/lib/onchain/masking";
 import Link from "next/link";
 import { DocumentUpload } from "../../components/document-upload";
 import { DocumentList } from "../../components/document-list";
@@ -27,6 +28,7 @@ export default async function BusinessDetailPage({
       transactions: { orderBy: { occurredAt: "desc" }, take: 10, include: { riskSignals: { orderBy: { createdAt: "desc" }, take: 5 } } },
       documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 10, include: { uploadedBy: { select: { id: true, name: true, email: true } } } },
       riskSignals: { orderBy: { createdAt: "desc" }, take: 20 },
+      walletAddresses: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, include: { screeningRuns: { orderBy: { screenedAt: "desc" }, take: 1 } } },
     },
   });
 
@@ -113,6 +115,31 @@ export default async function BusinessDetailPage({
                   </tbody>
                 </table>
               </div>
+            )}
+          </ProfileSection>
+
+          <ProfileSection title={`Wallets (${business.walletAddresses.length})`}>
+            {business.walletAddresses.length === 0 ? (
+              <p className="text-sm text-slate-500">No wallets linked.</p>
+            ) : (
+              <ul className="space-y-3">
+                {business.walletAddresses.map((w) => (
+                  <li key={w.id} className="rounded-md border border-slate-200 p-3">
+                    <div className="flex items-center justify-between">
+                      <Link href={`/wallets/${w.id}`} className="text-sm font-medium text-blue-600 hover:underline">
+                        {w.network} {maskWalletAddress(w.address)}
+                      </Link>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        (w.screeningRuns[0]?.riskLevel ?? "UNKNOWN") === "CRITICAL" ? "bg-red-50 text-red-700" :
+                        (w.screeningRuns[0]?.riskLevel ?? "UNKNOWN") === "HIGH" ? "bg-orange-50 text-orange-700" :
+                        (w.screeningRuns[0]?.riskLevel ?? "UNKNOWN") === "MEDIUM" ? "bg-yellow-50 text-yellow-700" :
+                        "bg-blue-50 text-blue-700"
+                      }`}>{w.screeningRuns[0]?.riskLevel ?? "UNKNOWN"}</span>
+                    </div>
+                    {w.label && <p className="text-xs text-slate-500">{w.label}</p>}
+                  </li>
+                ))}
+              </ul>
             )}
           </ProfileSection>
 

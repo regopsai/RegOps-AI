@@ -19,6 +19,9 @@ import {
   TransactionImportMode,
   AgentType,
   AgentRunStatus,
+  WalletAddressStatus,
+  BlockchainNetwork,
+  OnChainTransactionDirection,
 } from "@prisma/client";
 import { isProductionEnvironment, cleanupSeedData } from "../src/seed-cleanup";
 
@@ -713,6 +716,167 @@ async function main() {
     ],
   });
   console.log("AuditEvents created: 8");
+
+  // On-chain demo data
+  const solanaWallet = await prisma.walletAddress.create({
+    data: {
+      organizationId: org.id,
+      customerProfileId: individualCustomer.id,
+      network: BlockchainNetwork.SOLANA,
+      address: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+      label: "Primary SOL",
+      status: WalletAddressStatus.ACTIVE,
+      createdByUserId: managerUser.id,
+    },
+  });
+
+  const evmWallet = await prisma.walletAddress.create({
+    data: {
+      organizationId: org.id,
+      businessProfileId: businessCustomer.id,
+      network: BlockchainNetwork.BASE,
+      address: "0x1234567890abcdef1234567890abcdef12345678",
+      label: "GPay Base Wallet",
+      status: WalletAddressStatus.ACTIVE,
+      createdByUserId: managerUser.id,
+    },
+  });
+
+  const tronWallet = await prisma.walletAddress.create({
+    data: {
+      organizationId: org.id,
+      businessProfileId: businessCustomer.id,
+      network: BlockchainNetwork.TRON,
+      address: "TKrLU9dGtnHT3Z1qoekY6oEg7qPLbzdn3C",
+      label: "GPay Tron Wallet",
+      status: WalletAddressStatus.ACTIVE,
+      createdByUserId: managerUser.id,
+    },
+  });
+
+  await prisma.walletScreeningRun.create({
+    data: {
+      organizationId: org.id,
+      walletAddressId: solanaWallet.id,
+      provider: "manual",
+      status: "COMPLETED",
+      riskScore: 92,
+      riskLevel: RiskLevel.CRITICAL,
+      categoriesJson: JSON.stringify(["mixer", "sanctioned"]),
+      labelsJson: JSON.stringify(["high_risk"]),
+      summary: "Provider-indicated high-risk categories: mixer, sanctioned.",
+      screenedAt: new Date(),
+      createdByUserId: analystUser.id,
+    },
+  });
+
+  const onChainTxs = await prisma.onChainTransaction.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        walletAddressId: solanaWallet.id,
+        complianceCaseId: individualCase.id,
+        network: BlockchainNetwork.SOLANA,
+        txHash: "5xKx...hash001",
+        direction: OnChainTransactionDirection.INBOUND,
+        assetSymbol: "USDC",
+        amount: 25000.0,
+        usdValue: 25000.0,
+        counterpartyAddress: "CPabc...xyz",
+        counterpartyLabel: "Exchange A",
+        counterpartyRiskLevel: RiskLevel.LOW,
+        blockTime: new Date("2024-03-01T10:00:00Z"),
+      },
+      {
+        organizationId: org.id,
+        walletAddressId: solanaWallet.id,
+        complianceCaseId: individualCase.id,
+        network: BlockchainNetwork.SOLANA,
+        txHash: "5xKx...hash002",
+        direction: OnChainTransactionDirection.OUTBOUND,
+        assetSymbol: "USDC",
+        amount: 24800.0,
+        usdValue: 24800.0,
+        counterpartyAddress: "CPdef...uvw",
+        counterpartyLabel: "Unknown",
+        counterpartyRiskLevel: RiskLevel.HIGH,
+        blockTime: new Date("2024-03-01T10:15:00Z"),
+      },
+      {
+        organizationId: org.id,
+        walletAddressId: evmWallet.id,
+        complianceCaseId: businessCase.id,
+        network: BlockchainNetwork.BASE,
+        txHash: "0xabc...hash003",
+        direction: OnChainTransactionDirection.INBOUND,
+        assetSymbol: "USDT",
+        amount: 15000.0,
+        usdValue: 15000.0,
+        counterpartyAddress: "0xbad...actor",
+        counterpartyLabel: "Darknet Market",
+        counterpartyRiskLevel: RiskLevel.CRITICAL,
+        counterpartyCategory: "darknet",
+        blockTime: new Date("2024-03-02T12:00:00Z"),
+      },
+      {
+        organizationId: org.id,
+        walletAddressId: tronWallet.id,
+        complianceCaseId: businessCase.id,
+        network: BlockchainNetwork.TRON,
+        txHash: "Tx001...hash004",
+        direction: OnChainTransactionDirection.INBOUND,
+        assetSymbol: "USDT",
+        amount: 8000.0,
+        usdValue: 8000.0,
+        counterpartyAddress: "TGood...sender",
+        counterpartyLabel: "Partner",
+        blockTime: new Date("2024-03-02T11:00:00Z"),
+      },
+    ],
+  });
+  console.log(`On-chain transactions created: ${onChainTxs.count}`);
+
+  const onChainRiskSignals = await prisma.riskSignal.createMany({
+    data: [
+      {
+        organizationId: org.id,
+        complianceCaseId: individualCase.id,
+        customerProfileId: individualCustomer.id,
+        walletAddressId: solanaWallet.id,
+        ruleId: "WALLET_HIGH_RISK_CATEGORY",
+        title: "Wallet high-risk category indicator",
+        description: "Provider-indicated high-risk categories/labels: mixer, sanctioned.",
+        severity: RiskSignalSeverity.CRITICAL,
+        evidenceJson: JSON.stringify({ walletAddressId: solanaWallet.id, provider: "manual", matchingCategoriesLabels: ["mixer", "sanctioned"] }),
+        evidenceHash: "seed-onchain-category-001",
+      },
+      {
+        organizationId: org.id,
+        complianceCaseId: individualCase.id,
+        customerProfileId: individualCustomer.id,
+        walletAddressId: solanaWallet.id,
+        ruleId: "HIGH_VALUE_STABLECOIN_TRANSFER",
+        title: "High-value stablecoin transfer",
+        description: "On-chain transaction involves 25000 USDC (>= 10000).",
+        severity: RiskSignalSeverity.HIGH,
+        evidenceJson: JSON.stringify({ txHash: "5xKx...hash001", assetSymbol: "USDC", amount: "25000", usdValue: 25000, threshold: 10000 }),
+        evidenceHash: "seed-onchain-high-value-001",
+      },
+      {
+        organizationId: org.id,
+        complianceCaseId: businessCase.id,
+        businessProfileId: businessCustomer.id,
+        walletAddressId: evmWallet.id,
+        ruleId: "HIGH_RISK_COUNTERPARTY",
+        title: "High-risk counterparty",
+        description: "Transaction involves a high-risk counterparty (CRITICAL).",
+        severity: RiskSignalSeverity.CRITICAL,
+        evidenceJson: JSON.stringify({ onChainTransactionId: "seed", txHash: "0xabc...hash003", counterpartyAddressMasked: "0xba...ctor", counterpartyLabel: "Darknet Market", counterpartyRiskLevel: "CRITICAL", counterpartyCategory: "darknet" }),
+        evidenceHash: "seed-onchain-counterparty-001",
+      },
+    ],
+  });
+  console.log(`On-chain risk signals created: ${onChainRiskSignals.count}`);
 
   console.log("Seeding finished.");
 }

@@ -4,7 +4,7 @@ Compliance-native AI back office for regulated fintech operations.
 
 ## Overview
 
-RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto platforms, payment companies, and money-transfer operators manage KYB/KYC review, AML casework, policy checks, risk memos, human approval, evidence exports, and audit trails.
+RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto platforms, payment companies, and money-transfer operators manage KYB/KYC review, AML casework, policy checks, risk memos, human approval, evidence exports, audit trails, and on-chain risk intelligence.
 
 ## Monorepo Structure
 
@@ -14,6 +14,14 @@ RegOps AI helps fintechs, remittance companies, stablecoin businesses, crypto pl
 - `packages/compliance-core` — Shared compliance domain types
 - `packages/config` — Shared TypeScript and tooling configuration
 - `packages/ui` — Shared UI utilities and components
+
+### On-Chain Risk Intelligence MVP
+- Wallet address registry for Solana, Ethereum, Base, and Tron
+- Manual/provider screening signal import via CSV
+- On-chain transaction CSV import
+- Deterministic on-chain risk rules (high-value stablecoin, rapid sweep, high-risk counterparty, cross-chain patterns)
+- AI risk memo context includes on-chain evidence
+- Evidence export includes on-chain wallets and transactions
 
 ## Getting Started
 

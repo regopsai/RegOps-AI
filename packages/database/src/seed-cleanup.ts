@@ -29,6 +29,15 @@ export async function cleanupSeedData(prisma: PrismaClient): Promise<void> {
     return;
   }
 
+  await prisma.onChainTransaction.deleteMany({
+    where: { organizationId: existingOrg.id },
+  });
+  await prisma.walletScreeningRun.deleteMany({
+    where: { organizationId: existingOrg.id },
+  });
+  await prisma.walletAddress.deleteMany({
+    where: { organizationId: existingOrg.id },
+  });
   await prisma.transaction.deleteMany({
     where: { organizationId: existingOrg.id },
   });

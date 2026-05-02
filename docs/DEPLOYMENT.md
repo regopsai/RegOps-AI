@@ -57,6 +57,13 @@
 - `AI_MAX_CONTEXT_CHARS` — Max context size sent to the AI. Default: `30000`
 - `REGOPS_ALLOW_MOCK_AI_IN_PRODUCTION` — Set to `"true"` only if you explicitly intend to use mock output in production. Mock output is deterministic fake data and must never be used for real compliance work.
 
+### On-Chain Risk Provider
+- `ONCHAIN_RISK_PROVIDER` — `"manual"` or `"mock"`
+  - `"manual"` is the production-safe default. Screening results must be imported via CSV.
+  - `"mock"` is for local development and tests only.
+  - Production MUST use `"manual"` with imported provider screening results.
+- `REGOPS_ALLOW_MOCK_ONCHAIN_PROVIDER_IN_PRODUCTION` — Set to `"true"` only if you explicitly intend to use mock on-chain provider in production. Mock output is deterministic fake data and must never be used for real compliance work.
+
 ### Optional
 - `REGOPS_SEED_PASSWORD` — Password for seed demo users. Defaults to `RegOpsDev123!` for local dev. **Never use the default in production.**
 

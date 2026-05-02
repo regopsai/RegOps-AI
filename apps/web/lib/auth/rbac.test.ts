@@ -47,6 +47,10 @@ describe("RBAC permission matrix", () => {
       "transactions:import",
       "policies:read",
       "ai:risk_memo",
+      "onchain:read",
+      "onchain:write",
+      "onchain:screen",
+      "onchain:import",
     ];
 
     for (const p of allowed) {
@@ -68,9 +72,13 @@ describe("RBAC permission matrix", () => {
     expect(hasPermission("READ_ONLY_AUDITOR", "cases:read")).toBe(true);
     expect(hasPermission("READ_ONLY_AUDITOR", "audit_logs:read")).toBe(true);
     expect(hasPermission("READ_ONLY_AUDITOR", "evidence:export")).toBe(true);
+    expect(hasPermission("READ_ONLY_AUDITOR", "onchain:read")).toBe(true);
     expect(hasPermission("READ_ONLY_AUDITOR", "cases:create")).toBe(false);
     expect(hasPermission("READ_ONLY_AUDITOR", "documents:upload")).toBe(false);
     expect(hasPermission("READ_ONLY_AUDITOR", "documents:archive")).toBe(false);
+    expect(hasPermission("READ_ONLY_AUDITOR", "onchain:write")).toBe(false);
+    expect(hasPermission("READ_ONLY_AUDITOR", "onchain:screen")).toBe(false);
+    expect(hasPermission("READ_ONLY_AUDITOR", "onchain:import")).toBe(false);
   });
 
   it("returns false for unknown role", () => {

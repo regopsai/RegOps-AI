@@ -33,6 +33,9 @@ export default async function DashboardLayout({
               <Link href="/transactions" className="hover:text-slate-900">
                 Transactions
               </Link>
+              <Link href="/wallets" className="hover:text-slate-900">
+                Wallets
+              </Link>
               <Link
                 href="/settings/organization"
                 className="hover:text-slate-900"

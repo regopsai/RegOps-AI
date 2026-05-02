@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { prisma } from "@regops-ai/database";
+import { maskWalletAddress } from "@/lib/onchain/masking";
 
 export interface CaseEvidenceContext {
   caseSummary: {
@@ -48,6 +49,32 @@ export interface CaseEvidenceContext {
     visibility: string;
     bodySnippet: string;
     createdAt: string;
+  }>;
+  onChainWallets: Array<{
+    id: string;
+    network: string;
+    addressMasked: string;
+    label: string | null;
+    latestRiskLevel: string;
+    providerCategories: string[];
+    providerLabels: string[];
+  }>;
+  onChainTransactions: Array<{
+    id: string;
+    network: string;
+    txHash: string;
+    direction: string;
+    assetSymbol: string;
+    amount: string;
+    usdValue: string | null;
+    counterpartyAddressMasked: string | null;
+    blockTime: string;
+  }>;
+  onChainRiskSignals: Array<{
+    ruleId: string;
+    title: string;
+    severity: string;
+    description: string;
   }>;
   missingDataSummary: {
     missingProfileFields: string[];
@@ -135,6 +162,27 @@ export async function buildRiskMemoContextService(
         orderBy: { createdAt: "desc" },
         take: 20,
       },
+      walletAddresses: {
+        where: { deletedAt: null },
+        include: {
+          screeningRuns: { orderBy: { screenedAt: "desc" }, take: 1 },
+        },
+      },
+      onChainTransactions: {
+        select: {
+          id: true,
+          network: true,
+          txHash: true,
+          direction: true,
+          assetSymbol: true,
+          amount: true,
+          usdValue: true,
+          counterpartyAddress: true,
+          blockTime: true,
+        },
+        orderBy: { blockTime: "desc" },
+        take: 50,
+      },
     },
   });
 
@@ -218,6 +266,40 @@ export async function buildRiskMemoContextService(
     createdAt: n.createdAt.toISOString(),
   }));
 
+  const onChainWallets = caseRecord.walletAddresses.map((w) => {
+    const latestScreening = w.screeningRuns[0];
+    return {
+      id: w.id,
+      network: w.network,
+      addressMasked: maskWalletAddress(w.address),
+      label: w.label,
+      latestRiskLevel: latestScreening?.riskLevel ?? "UNKNOWN",
+      providerCategories: latestScreening?.categoriesJson ? JSON.parse(latestScreening.categoriesJson) as string[] : [],
+      providerLabels: latestScreening?.labelsJson ? JSON.parse(latestScreening.labelsJson) as string[] : [],
+    };
+  });
+
+  const onChainTransactions = caseRecord.onChainTransactions.map((t) => ({
+    id: t.id,
+    network: t.network,
+    txHash: t.txHash,
+    direction: t.direction,
+    assetSymbol: t.assetSymbol,
+    amount: t.amount.toString(),
+    usdValue: t.usdValue ? t.usdValue.toString() : null,
+    counterpartyAddressMasked: t.counterpartyAddress ? maskWalletAddress(t.counterpartyAddress) : null,
+    blockTime: t.blockTime.toISOString(),
+  }));
+
+  const onChainRiskSignals = caseRecord.riskSignals
+    .filter((rs) => rs.ruleId.startsWith("WALLET_") || rs.ruleId.startsWith("HIGH_VALUE_STABLECOIN") || rs.ruleId.startsWith("RAPID_STABLECOIN") || rs.ruleId.startsWith("HIGH_RISK_COUNTERPARTY") || rs.ruleId.startsWith("CROSS_CHAIN"))
+    .map((rs) => ({
+      ruleId: rs.ruleId,
+      title: rs.title,
+      severity: rs.severity,
+      description: rs.description,
+    }));
+
   // Compute missing data summary
   const missingProfileFields: string[] = [];
   const missingDocumentTypes: string[] = [];
@@ -274,6 +356,9 @@ export async function buildRiskMemoContextService(
     transactions,
     riskSignals,
     notes,
+    onChainWallets,
+    onChainTransactions,
+    onChainRiskSignals,
     missingDataSummary: {
       missingProfileFields,
       missingDocumentTypes,
@@ -330,6 +415,30 @@ export async function buildRiskMemoContextService(
     for (const n of context.notes) {
       parts.push(`- [${n.visibility}] ${n.createdAt}`);
       parts.push(`  ${n.bodySnippet}`);
+    }
+  }
+
+  if (context.onChainWallets.length > 0) {
+    parts.push(`\n## On-Chain Wallets (${context.onChainWallets.length})`);
+    for (const w of context.onChainWallets) {
+      parts.push(`- ${w.network} ${w.addressMasked}${w.label ? ` (${w.label})` : ""} — Risk: ${w.latestRiskLevel}`);
+      if (w.providerCategories.length > 0) parts.push(`  Categories: ${w.providerCategories.join(", ")}`);
+      if (w.providerLabels.length > 0) parts.push(`  Labels: ${w.providerLabels.join(", ")}`);
+    }
+  }
+
+  if (context.onChainTransactions.length > 0) {
+    parts.push(`\n## On-Chain Transactions (${context.onChainTransactions.length})`);
+    for (const t of context.onChainTransactions) {
+      parts.push(`- ${t.network} ${t.txHash}: ${t.direction} ${t.amount} ${t.assetSymbol}${t.usdValue ? ` (~$${t.usdValue})` : ""}`);
+    }
+  }
+
+  if (context.onChainRiskSignals.length > 0) {
+    parts.push(`\n## On-Chain Risk Signals (${context.onChainRiskSignals.length})`);
+    for (const rs of context.onChainRiskSignals) {
+      parts.push(`- [${rs.severity}] ${rs.title} (${rs.ruleId})`);
+      parts.push(`  ${rs.description}`);
     }
   }
 

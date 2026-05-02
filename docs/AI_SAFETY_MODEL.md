@@ -28,6 +28,14 @@ The context builder includes only evidence already in the system:
 - Document metadata and extracted text snippets (truncated)
 - Transaction summaries (truncated)
 - Deterministic risk signals
+- On-chain wallet summaries (masked addresses, latest risk level, provider categories/labels)
+- On-chain transaction summaries (networks, stablecoin totals, high-risk counterparties)
+- On-chain risk signals (ruleId, title, severity, summarized evidence)
+
+The context builder explicitly excludes:
+- Raw provider payload
+- Full unmasked wallet addresses
+- API keys or credentials
 - Case notes (truncated)
 - Missing data summary
 

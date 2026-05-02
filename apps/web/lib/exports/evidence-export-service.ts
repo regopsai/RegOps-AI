@@ -1,5 +1,6 @@
 import { prisma, createAuditEvent } from "@regops-ai/database";
 import { hasPermission, type Permission, type OrganizationRole } from "@/lib/auth/rbac";
+import { maskWalletAddress } from "@/lib/onchain/masking";
 import PDFDocument from "pdfkit";
 
 export interface ActorContext {
@@ -160,6 +161,40 @@ export interface EvidenceExportData {
       createdAt: string;
     }[];
   };
+  onChainWallets: {
+    id: string;
+    network: string;
+    addressMasked: string;
+    label: string | null;
+    status: string;
+    latestRiskLevel: string;
+    latestProvider: string | null;
+    screeningRunCount: number;
+  }[];
+  onChainTransactions: {
+    count: number;
+    rows: {
+      id: string;
+      network: string;
+      txHash: string;
+      direction: string;
+      assetSymbol: string;
+      amount: string;
+      usdValue: string | null;
+      counterpartyAddressMasked: string | null;
+      counterpartyLabel: string | null;
+      blockTime: string;
+    }[];
+  };
+  onChainRiskSignals: {
+    id: string;
+    ruleId: string;
+    title: string;
+    description: string;
+    severity: string;
+    createdAt: string;
+    evidenceSummary: string | null;
+  }[];
   auditTimeline: {
     action: string;
     actorUserId: string | null;
@@ -503,7 +538,77 @@ export async function buildEvidenceExportService(
       createdAt: e.createdAt.toISOString(),
       metadataSummary: summarizeAuditMetadata(e.metadataJson),
     })),
+    onChainWallets: [],
+    onChainTransactions: { count: 0, rows: [] },
+    onChainRiskSignals: [],
   };
+
+  // On-chain data
+  const onChainWallets = await prisma.walletAddress.findMany({
+    where: { organizationId: ctx.organizationId, complianceCaseId: input.complianceCaseId, deletedAt: null },
+    include: {
+      screeningRuns: { orderBy: { screenedAt: "desc" }, take: 1 },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const onChainTxs = await prisma.onChainTransaction.findMany({
+    where: { organizationId: ctx.organizationId, complianceCaseId: input.complianceCaseId },
+    orderBy: { blockTime: "desc" },
+    take: 100,
+  });
+
+  const onChainRiskSignals = await prisma.riskSignal.findMany({
+    where: {
+      organizationId: ctx.organizationId,
+      complianceCaseId: input.complianceCaseId,
+      OR: [
+        { walletAddressId: { not: null } },
+        { onChainTransactionId: { not: null } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  exportData.onChainWallets = onChainWallets.map((w) => {
+    const latestScreening = w.screeningRuns[0];
+    return {
+      id: w.id,
+      network: w.network,
+      addressMasked: maskWalletAddress(w.address),
+      label: w.label,
+      status: w.status,
+      latestRiskLevel: latestScreening?.riskLevel ?? "UNKNOWN",
+      latestProvider: latestScreening?.provider ?? null,
+      screeningRunCount: w.screeningRuns.length,
+    };
+  });
+
+  exportData.onChainTransactions = {
+    count: onChainTxs.length,
+    rows: onChainTxs.map((t) => ({
+      id: t.id,
+      network: t.network,
+      txHash: t.txHash,
+      direction: t.direction,
+      assetSymbol: t.assetSymbol,
+      amount: toDecimalString(t.amount),
+      usdValue: t.usdValue ? toDecimalString(t.usdValue) : null,
+      counterpartyAddressMasked: t.counterpartyAddress ? maskWalletAddress(t.counterpartyAddress) : null,
+      counterpartyLabel: t.counterpartyLabel,
+      blockTime: t.blockTime.toISOString(),
+    })),
+  };
+
+  exportData.onChainRiskSignals = onChainRiskSignals.map((rs) => ({
+    id: rs.id,
+    ruleId: rs.ruleId,
+    title: rs.title,
+    description: rs.description,
+    severity: rs.severity,
+    createdAt: rs.createdAt.toISOString(),
+    evidenceSummary: summarizeRiskSignalEvidence(rs.evidenceJson),
+  }));
 
   return exportData;
 }
@@ -523,6 +628,9 @@ export async function renderEvidenceExportPdfService(exportData: EvidenceExportD
     doc.on("error", (err: Error) => reject(err));
 
     const { exportMetadata, organization, caseSummary, subject, documents, transactions, riskSignals, riskMemos, finalDecisions, caseNotes, auditTimeline } = exportData;
+    const onChainWallets = exportData.onChainWallets ?? [];
+    const onChainTransactions = exportData.onChainTransactions ?? { count: 0, rows: [] };
+    const onChainRiskSignals = exportData.onChainRiskSignals ?? [];
 
     doc.fontSize(20).text("RegOps AI — Evidence Export Pack", 50, 50);
     doc.fontSize(10).text(`Generated: ${new Date(exportMetadata.generatedAt).toUTCString()}`, 50, 80);
@@ -685,6 +793,53 @@ export async function renderEvidenceExportPdfService(exportData: EvidenceExportD
     }
     doc.moveDown();
 
+    doc.fontSize(14).text(`On-Chain Wallets (${onChainWallets.length})`, { underline: true });
+    doc.fontSize(10);
+    if (onChainWallets.length === 0) {
+      doc.text("No on-chain wallets.");
+    } else {
+      onChainWallets.forEach((w) => {
+        doc.text(`• ${w.network} ${w.addressMasked}${w.label ? ` (${w.label})` : ""} — ${w.status} — Risk: ${w.latestRiskLevel}${w.latestProvider ? ` (${w.latestProvider})` : ""}`);
+      });
+    }
+    doc.moveDown();
+
+    doc.fontSize(14).text(`On-Chain Transactions (${onChainTransactions.count})`, { underline: true });
+    doc.fontSize(10);
+    if (onChainTransactions.count === 0) {
+      doc.text("No on-chain transactions.");
+    } else {
+      doc.text(`Showing up to ${onChainTransactions.rows.length} transactions:`);
+      onChainTransactions.rows.forEach((t) => {
+        const line = [
+          `• ${t.network}`,
+          t.txHash,
+          t.direction,
+          `${t.amount} ${t.assetSymbol}`,
+          t.usdValue ? `~$${t.usdValue}` : null,
+          t.counterpartyAddressMasked ? `To: ${t.counterpartyAddressMasked}` : null,
+          new Date(t.blockTime).toUTCString(),
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        doc.text(line);
+      });
+    }
+    doc.moveDown();
+
+    doc.fontSize(14).text(`On-Chain Risk Signals (${onChainRiskSignals.length})`, { underline: true });
+    doc.fontSize(10);
+    if (onChainRiskSignals.length === 0) {
+      doc.text("No on-chain risk signals.");
+    } else {
+      onChainRiskSignals.forEach((rs) => {
+        doc.text(`• [${rs.severity}] ${rs.title} (Rule: ${rs.ruleId})`);
+        doc.text(`  ${rs.description}`);
+        if (rs.evidenceSummary) doc.text(`  Evidence: ${rs.evidenceSummary}`);
+      });
+    }
+    doc.moveDown();
+
     doc.fontSize(14).text(`Audit Timeline (${auditTimeline.length})`, { underline: true });
     doc.fontSize(10);
     if (auditTimeline.length === 0) {
@@ -758,6 +913,8 @@ export async function generateEvidenceExportService(
       riskSignalCount: exportData.riskSignals.length,
       riskMemoCount: exportData.riskMemos.historical.length,
       approvalDecisionCount: exportData.finalDecisions.length,
+      onChainWalletCount: exportData.onChainWallets.length,
+      onChainTransactionCount: exportData.onChainTransactions.count,
     }),
   });
 
